@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AttendanceAction } from '@/components/AttendanceAction';
 
 type InfoRowProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -126,7 +127,7 @@ export default function SessionDetailScreen() {
                 onPress={() => router.push('/praktikan')}
               >
                 <Ionicons name="finger-print-outline" size={20} color={colors.textOnPrimary} />
-                <Text style={styles.btnText}>Presensi Sekarang</Text>
+		{session.status === 'DIBUKA' && <AttendanceAction session={session} />}
               </Pressable>
             )}
             {isAttended && userAttendance && (
