@@ -1,3 +1,4 @@
+import { AttendanceAction } from '@/components/AttendanceAction';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useApp } from '@/context/AppContext';
@@ -7,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AttendanceAction } from '@/components/AttendanceAction';
 
 type InfoRowProps = {
   icon: keyof typeof Ionicons.glyphMap;

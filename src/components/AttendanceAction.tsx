@@ -1,4 +1,3 @@
-// src/components/AttendanceAction.tsx
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -35,7 +34,7 @@ export const AttendanceAction = ({ session }: { session: Session }) => {
   return (
     <View>
       {!attended && (
-        <View>
+        <View style={styles.form}>
           <Text style={styles.label}>Catatan (opsional)</Text>
           <TextInput
             style={styles.input}
@@ -66,6 +65,7 @@ export const AttendanceAction = ({ session }: { session: Session }) => {
 };
 
 const styles = StyleSheet.create({
+  form: { marginBottom: 12 },
   label: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 },
   input: {
     backgroundColor: colors.card,
@@ -86,7 +86,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingVertical: 15,
     borderRadius: 14,
-    marginBottom: 12,
   },
   btnPressed: { backgroundColor: colors.primaryDark },
   btnText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 16 },
