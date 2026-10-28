@@ -121,15 +121,7 @@ export default function SessionDetailScreen() {
                 </Text>
               </View>
             )}
-            {session.status === 'DIBUKA' && !isAttended && (
-              <Pressable
-                style={({ pressed }) => [styles.btnPrimary, pressed && styles.btnPrimaryPressed]}
-                onPress={() => router.push('/praktikan')}
-              >
-                <Ionicons name="finger-print-outline" size={20} color={colors.textOnPrimary} />
-		{session.status === 'DIBUKA' && <AttendanceAction session={session} />}
-              </Pressable>
-            )}
+            {session.status === 'DIBUKA' && <AttendanceAction session={session} />}
             {isAttended && userAttendance && (
               <View style={[styles.notice, { backgroundColor: colors.statusSoft.DIBUKA.bg }]}>
                 <Ionicons name="checkmark-circle" size={22} color={colors.statusSoft.DIBUKA.text} />
