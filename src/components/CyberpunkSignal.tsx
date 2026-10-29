@@ -1,15 +1,15 @@
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
-  cancelAnimation,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
+    cancelAnimation,
+    useAnimatedStyle,
+    useReducedMotion,
+    useSharedValue,
+    withRepeat,
+    withTiming,
 } from 'react-native-reanimated';
 
-export default function CyberpunkSignal({ color = '#2F9E70', size = 7 }) {
+export default function CyberpunkSignal({ color = '#2F9E70', size = 7 }: { color?: string; size?: number }) {
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(1);
 

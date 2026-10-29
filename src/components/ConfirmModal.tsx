@@ -1,6 +1,5 @@
-
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function ConfirmModal({
   visible,
@@ -11,6 +10,15 @@ export default function ConfirmModal({
   danger = false,
   onConfirm,
   onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
 }) {
   return (
     <Modal
