@@ -1,5 +1,2 @@
-import { Redirect } from 'expo-router';
-
-export default function Index() {
-  return <Redirect href="/assistant" />;
-}
+import RoleSelectScreen from '../screens/RoleSelectScreen';
+export default RoleSelectScreen;
