@@ -1,3 +1,4 @@
+import { AttendanceAction } from '@/components/AttendanceAction';
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useApp } from '@/context/AppContext';
@@ -120,15 +121,7 @@ export default function SessionDetailScreen() {
                 </Text>
               </View>
             )}
-            {session.status === 'DIBUKA' && !isAttended && (
-              <Pressable
-                style={({ pressed }) => [styles.btnPrimary, pressed && styles.btnPrimaryPressed]}
-                onPress={() => router.push('/praktikan')}
-              >
-                <Ionicons name="finger-print-outline" size={20} color={colors.textOnPrimary} />
-                <Text style={styles.btnText}>Presensi Sekarang</Text>
-              </Pressable>
-            )}
+            {session.status === 'DIBUKA' && <AttendanceAction session={session} />}
             {isAttended && userAttendance && (
               <View style={[styles.notice, { backgroundColor: colors.statusSoft.DIBUKA.bg }]}>
                 <Ionicons name="checkmark-circle" size={22} color={colors.statusSoft.DIBUKA.text} />

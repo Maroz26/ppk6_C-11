@@ -49,7 +49,13 @@ export default function AttendanceScreen() {
         </Pressable>
       </View>
 
-      <Text style={styles.sectionTitle}>Daftar Sesi Praktikum</Text>
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>Daftar Sesi Praktikum</Text>
+        <Pressable onPress={() => router.push('/praktikan/riwayat')} style={styles.btnRiwayat}>
+          <Ionicons name="time-outline" size={16} color={colors.primary} />
+          <Text style={styles.btnRiwayatText}>Riwayat</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -166,7 +172,10 @@ const styles = StyleSheet.create({
   btnLogoutPressed: { backgroundColor: 'rgba(255,255,255,0.32)' },
   btnLogoutText: { color: colors.textOnPrimary, fontWeight: '600', fontSize: 13 },
 
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 0 },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  btnRiwayat: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primarySoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 },
+  btnRiwayatText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
 
   // Footer di SessionCard
   cardFooter: { flexDirection: 'row', alignItems: 'center' },
