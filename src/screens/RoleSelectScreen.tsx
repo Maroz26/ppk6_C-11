@@ -1,6 +1,7 @@
 import { useApp } from '@/context/AppContext';
 import { colors } from '@/theme/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { getAuth, signOut } from '@react-native-firebase/auth';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -33,6 +34,16 @@ export default function RoleSelectScreen() {
     setRole(role);
     router.push('/identitas');
   };
+    const email = getAuth().currentUser?.email ?? '';
+
+  const handleLogout = async () => {
+    try {
+      // _layout.tsx akan otomatis memindahkan ke halaman login.
+      await signOut(getAuth());
+    } catch {
+      // Biarkan pengguna mencoba lagi.
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -60,6 +71,27 @@ export default function RoleSelectScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </Pressable>
       ))}
+            <Pressable
+        onPress={() => router.push('/testAi')}
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      >
+        <View style={styles.iconWrap}>
+          <Ionicons name="sparkles-outline" size={26} color={colors.primary} />
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle}>Analisis AI</Text>
+          <Text style={styles.cardDesc}>Uji analisis sentimen ulasan</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+      </Pressable>
+
+      <View style={styles.footer}>
+        {!!email && <Text style={styles.cardDesc}>Masuk sebagai {email}</Text>}
+        <Pressable onPress={handleLogout} style={styles.logoutButton}>
+          <Ionicons name="log-out-outline" size={18} color={colors.primary} />
+          <Text style={styles.logoutLabel}>Logout</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -142,5 +174,21 @@ const styles = StyleSheet.create({
   cardDesc: {
     fontSize: 13,
     color: colors.textSecondary,
+  },
+    footer: {
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 8,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 10,
+  },
+  logoutLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });
