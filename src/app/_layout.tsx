@@ -31,6 +31,7 @@ export default function RootLayout() {
     <AppProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="token-storage" options={{ headerShown: true, title: 'Uji Access Token' }} />
         <Stack.Screen name="identitas" />
         <Stack.Screen name="asisten" />
         <Stack.Screen name="praktikan" />

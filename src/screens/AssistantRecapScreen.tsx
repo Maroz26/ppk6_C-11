@@ -6,7 +6,6 @@ import { EmptyState } from '../components/EmptyState';
 import { RecapRow } from '../components/RecapRow';
 import { StatusBadge } from '../components/StatusBadge';
 import { useApp } from '../context/AppContext';
-import { USER_ENROLLMENTS } from '../data/dummyData';
 import { colors } from '../theme/colors';
 
 export default function AssistantRecapScreen() {
@@ -17,7 +16,7 @@ export default function AssistantRecapScreen() {
   if (!session) return <EmptyState title="Sesi tidak ditemukan" />;
 
   // praktikan yang terdaftar di sesi ini
-  const roster = praktikanList.filter(p => USER_ENROLLMENTS[p.id]?.includes(session.id));
+  const roster = praktikanList.filter(p => session.enrolledStudents.includes(p.id));
   const attendances = getAttendanceBySession(session.id);
 
   const rows = roster.map(p => ({

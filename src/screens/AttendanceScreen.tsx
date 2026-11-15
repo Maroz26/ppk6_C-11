@@ -5,10 +5,9 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { EmptyState } from '../components/EmptyState';
 import { SessionCard } from '../components/SessionCard';
 import { useApp } from '../context/AppContext';
-import { USER_ENROLLMENTS } from '../data/dummyData';
 import { colors } from '../theme/colors';
 
-export default function AttendanceScreen() {
+export default function n() {
   const { currentUser, sessions, hasAttended, logout } = useApp();
 
   const handleLogout = () => {
@@ -16,9 +15,8 @@ export default function AttendanceScreen() {
     router.replace('/');
   };
 
-  const userSessionIds = currentUser ? USER_ENROLLMENTS[currentUser.id] || [] : [];
   const sortedSessions = sessions
-    .filter(s => userSessionIds.includes(s.id))
+    .filter(session => session.enrolledStudents.includes(currentUser?.id ?? ''))
     .sort(
       (a, b) =>
         new Date(`${a.tanggal}T${a.jamMulai}`).getTime() -
@@ -56,6 +54,14 @@ export default function AttendanceScreen() {
           <Text style={styles.btnRiwayatText}>Riwayat</Text>
         </Pressable>
       </View>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/praktikan/izin')}
+        style={({ pressed }) => [styles.btnAjukanIzin, pressed && styles.btnPresensiPressed]}>
+        <Ionicons name="document-text-outline" size={16} color={colors.primary} />
+        <Text style={styles.btnAjukanIzinText}>Ajukan izin</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+      </Pressable>
     </View>
   );
 
@@ -174,6 +180,8 @@ const styles = StyleSheet.create({
 
   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 0 },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  btnAjukanIzin: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, borderRadius: 12, backgroundColor: colors.primarySoft, marginBottom: 14 },
+  btnAjukanIzinText: { flex: 1, color: colors.primary, fontWeight: '700', fontSize: 13 },
   btnRiwayat: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primarySoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 },
   btnRiwayatText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
 

@@ -60,6 +60,9 @@ export default function RoleSelectScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </Pressable>
       ))}
+      <Pressable onPress={() => router.push('/token-storage')} style={styles.tokenTestLink}>
+        <Text style={styles.tokenTestText}>Uji penyimpanan access token</Text>
+      </Pressable>
     </View>
   );
 }
@@ -142,5 +145,14 @@ const styles = StyleSheet.create({
   cardDesc: {
     fontSize: 13,
     color: colors.textSecondary,
+  },
+  tokenTestLink: {
+    alignItems: 'center',
+    padding: 12,
+  },
+  tokenTestText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

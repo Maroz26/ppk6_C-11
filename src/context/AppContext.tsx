@@ -60,7 +60,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (hasAttended(sessionId, currentUser.id)) return { ok: false, reason: 'SUDAH_PRESENSI' };
 
     const record: Attendance = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: `${sessionId}_${currentUser.id}`,
       sessionId,
       praktikanId: currentUser.id,
       nama: currentUser.nama,

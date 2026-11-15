@@ -1,13 +1,13 @@
 import { Session, User } from '../types';
 
 export const DUMMY_USERS: User[] = [
-  { id: 'p1', nama: 'Silvani Sastra', nim: '24060124140001', role: 'PRAKTIKAN' },
-  { id: 'p2', nama: 'Alyssa Liu', nim: '24060124140002', role: 'PRAKTIKAN' },
-  { id: 'p3', nama: 'Anggita Kana', nim: '23060123140003', role: 'PRAKTIKAN' },
-  { id: 'p4', nama: 'Revalina Alinea', nim: '23060123140004', role: 'PRAKTIKAN' },
-  { id: 'p5', nama: 'Ruth Annisa', nim: '24060124140005', role: 'PRAKTIKAN' },
-  { id: 'a1', nama: 'Asep Vivo', nim: '22060122140001', role: 'ASISTEN' },
-  { id: 'a2', nama: 'Shasta Putri', nim: '22060122140002', role: 'ASISTEN' },
+  { id: 'p1', nama: 'Silvani Sastra', nim: '24060124140001', email: 'silvani.sastra@example.edu', role: 'PRAKTIKAN' },
+  { id: 'p2', nama: 'Alyssa Liu', nim: '24060124140002', email: 'alyssa.liu@example.edu', role: 'PRAKTIKAN' },
+  { id: 'p3', nama: 'Anggita Kana', nim: '23060123140003', email: 'anggita.kana@example.edu', role: 'PRAKTIKAN' },
+  { id: 'p4', nama: 'Revalina Alinea', nim: '23060123140004', email: 'revalina.alinea@example.edu', role: 'PRAKTIKAN' },
+  { id: 'p5', nama: 'Ruth Annisa', nim: '24060124140005', email: 'ruth.annisa@example.edu', role: 'PRAKTIKAN' },
+  { id: 'a1', nama: 'Asep Vivo', nim: '22060122140001', email: 'asep.vivo@example.edu', role: 'ASISTEN' },
+  { id: 'a2', nama: 'Shasta Putri', nim: '22060122140002', email: 'shasta.putri@example.edu', role: 'ASISTEN' },
 ];
 
 export const DUMMY_SESSIONS: Session[] = [
@@ -24,7 +24,9 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'DIBUKA',
     dibukaPada: '2026-10-27T08:00:00Z',
     ditutupPada: null,
-    dibukaOleh: 'a1'
+    dibukaOleh: 'a1',
+    dibuatOleh: 'a1',
+    enrolledStudents: ['p1', 'p2'],
   },
   {
     id: 's2',
@@ -39,7 +41,9 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'DITUTUP',
     dibukaPada: '2026-10-26T10:25:00Z',
     ditutupPada: '2026-10-26T12:35:00Z',
-    dibukaOleh: 'a1'
+    dibukaOleh: 'a1',
+    dibuatOleh: 'a1',
+    enrolledStudents: ['p5'],
   },
   {
     id: 's3',
@@ -54,7 +58,9 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'BELUM_DIBUKA',
     dibukaPada: null,
     ditutupPada: null,
-    dibukaOleh: null
+    dibukaOleh: null,
+    dibuatOleh: 'a2',
+    enrolledStudents: ['p3', 'p4'],
   },
   {
     id: 's4',
@@ -69,7 +75,9 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'BELUM_DIBUKA',
     dibukaPada: null,
     ditutupPada: null,
-    dibukaOleh: null
+    dibukaOleh: null,
+    dibuatOleh: 'a2',
+    enrolledStudents: ['p5'],
   },
   {
     id: 's5',
@@ -84,7 +92,9 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'BELUM_DIBUKA',
     dibukaPada: null,
     ditutupPada: null,
-    dibukaOleh: null
+    dibukaOleh: null,
+    dibuatOleh: 'a1',
+    enrolledStudents: ['p1', 'p2'],
   },
   {
     id: 's6',
@@ -99,7 +109,9 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'BELUM_DIBUKA',
     dibukaPada: null,
     ditutupPada: null,
-    dibukaOleh: null
+    dibukaOleh: null,
+    dibuatOleh: 'a1',
+    enrolledStudents: [],
   },
   {
     id: 's7',
@@ -114,24 +126,8 @@ export const DUMMY_SESSIONS: Session[] = [
     status: 'BELUM_DIBUKA',
     dibukaPada: null,
     ditutupPada: null,
-    dibukaOleh: null
+    dibukaOleh: null,
+    dibuatOleh: 'a2',
+    enrolledStudents: ['p3', 'p4'],
   }
 ];
-
-// Pemetaan ID Sesi Praktikum yang diikuti/diampu oleh setiap User
-export const USER_ENROLLMENTS: Record<string, string[]> = {
-  // Praktikan Angkatan 2024 (Pemrograman Web A & Struktur Data A)
-  'p1': ['s1', 's5'],
-  'p2': ['s1', 's5'],
-
-  // Praktikan Angkatan 2023 (Basis Data A & Sistem Operasi A)
-  'p3': ['s3', 's7'],
-  'p4': ['s3', 's7'],
-
-  // Praktikan Kelas B (Pemrograman Web B & Basis Data B)
-  'p5': ['s2', 's4'], 
-
-  // Asisten & Mata Praktikum yang Diampu
-  'a1': ['s1', 's2', 's5', 's6'],
-  'a2': ['s3', 's4', 's7'],  
-};

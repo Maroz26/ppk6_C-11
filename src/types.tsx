@@ -14,6 +14,8 @@ export type Session = {
   dibukaPada: string | null;
   ditutupPada: string | null;
   dibukaOleh: string | null;
+  dibuatOleh: string;
+  enrolledStudents: string[];
 };
 
 export type Role = 'PRAKTIKAN' | 'ASISTEN';
@@ -22,6 +24,7 @@ export type User = {
   id: string;
   nama: string;
   nim: string;
+  email: string;
   role: Role;
 };
 
