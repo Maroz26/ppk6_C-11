@@ -35,7 +35,7 @@ function StudentReviews() {
   const { data: reviews, loading } = useMyReviews(currentUser?.id);
 
   const reviewable = sessions.filter(s => s.status !== 'BELUM_DIBUKA');
-  const activeId = selected ?? reviewable[0]?.id ?? null;
+  const activeId = selected;
 
   const handleSubmit = async () => {
     const trimmed = teks.trim();
@@ -66,21 +66,29 @@ function StudentReviews() {
 
       <Text style={styles.label}>Sesi</Text>
       {reviewable.length === 0 ? (
-        <Text style={styles.hint}>Belum ada sesi yang bisa diulas.</Text>
+        <Text style={styles.hint}>
+          Belum ada sesi yang bisa diulas. Sesi harus sudah dibuka oleh asisten.
+        </Text>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
-          {reviewable.map(s => (
-            <Pressable
-              key={s.id}
-              onPress={() => setSelected(s.id)}
-              style={[styles.chip, activeId === s.id && styles.chipActive]}
-            >
-              <Text style={[styles.chipText, activeId === s.id && styles.chipTextActive]}>{labelOf(s)}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <>
+          <Text style={styles.hint}>
+            {activeId
+              ? `Mengulas: ${labelOf(sessions.find(s => s.id === activeId))}`
+              : 'Pilih sesi yang ingin diulas.'}
+          </Text>
+          <View style={styles.chips}>
+            {reviewable.map(s => (
+              <Pressable
+                key={s.id}
+                onPress={() => setSelected(s.id)}
+                style={[styles.chip, activeId === s.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, activeId === s.id && styles.chipTextActive]}>{labelOf(s)}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
       )}
-
       <Text style={styles.label}>Kesan & pesan</Text>
       <TextInput
         style={styles.input}
@@ -185,7 +193,7 @@ const styles = StyleSheet.create({
   headingGap: { marginTop: 28 },
   label: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6, marginTop: 4 },
   hint: { fontSize: 13, color: colors.textSecondary, fontStyle: 'italic' },
-  chips: { marginBottom: 12 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, marginBottom: 4 },
   chip: {
     paddingVertical: 8,
     paddingHorizontal: 14,
@@ -194,6 +202,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     marginRight: 8,
+    marginBottom: 8,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 13, color: colors.text },
