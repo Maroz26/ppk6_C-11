@@ -1,0 +1,92 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Peran dibaca dari profil pengguna di users/{uid}.
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAsisten() {
+      return signedIn() && myRole() == 'ASISTEN';
+    }
+
+    function isPraktikan() {
+      return signedIn() && myRole() == 'PRAKTIKAN';
+    }
+
+    // Profil pengguna: dibuat sendiri saat register, peran tidak bisa diganti.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAsisten());
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role in ['ASISTEN', 'PRAKTIKAN']
+        && request.resource.data.nama is string
+        && request.resource.data.nim is string;
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    // Sesi praktikum: dikelola asisten, praktikan hanya melihat sesi yang ia ikuti.
+    match /sessions/{sessionId} {
+      allow read: if isAsisten()
+        || (signedIn() && request.auth.uid in resource.data.enrolledStudents);
+      allow create: if isAsisten()
+        && request.resource.data.dibuatOleh == request.auth.uid;
+      allow update: if isAsisten()
+        && request.resource.data.dibuatOleh == resource.data.dibuatOleh;
+      allow delete: if isAsisten()
+        && resource.data.dibuatOleh == request.auth.uid;
+    }
+
+    // Presensi: id dokumen {sessionId}_{uid}, jadi tidak bisa presensi dua kali.
+    match /attendances/{attendanceId} {
+      allow get: if isAsisten()
+        || (signedIn() && attendanceId.matches('.*_' + request.auth.uid));
+      allow list: if isAsisten()
+        || (signedIn() && resource.data.praktikanId == request.auth.uid);
+      allow create: if isPraktikan()
+        && request.resource.data.praktikanId == request.auth.uid
+        && attendanceId == request.resource.data.sessionId + '_' + request.auth.uid
+        && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.status == 'DIBUKA'
+        && request.auth.uid in get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.enrolledStudents;
+      allow update, delete: if false;
+    }
+
+    // Izin: diajukan praktikan, diputuskan manual oleh asisten.
+    match /permissions/{permissionId} {
+      allow read: if isAsisten()
+        || (signedIn() && resource.data.praktikanId == request.auth.uid);
+      allow create: if isPraktikan()
+        && request.resource.data.praktikanId == request.auth.uid
+        && request.resource.data.status == 'MENUNGGU'
+        && request.resource.data.alasan is string
+        && request.resource.data.alasan.size() > 0;
+      allow update: if isAsisten()
+        && request.resource.data.status in ['DITERIMA', 'DITOLAK']
+        && request.resource.data.diputuskanOleh == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'diputuskanOleh', 'diputuskanPada']);
+      allow delete: if false;
+    }
+
+    // Kesan & pesan: ditulis praktikan, dibaca asisten.
+    match /reviews/{reviewId} {
+      allow read: if isAsisten()
+        || (signedIn() && resource.data.praktikanId == request.auth.uid);
+      allow create: if isPraktikan()
+        && request.resource.data.praktikanId == request.auth.uid
+        && request.resource.data.teks is string
+        && request.resource.data.teks.size() > 0
+        && request.resource.data.sentimen is string;
+      allow update, delete: if false;
+    }
+  }
+}
