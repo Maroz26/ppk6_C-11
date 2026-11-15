@@ -6,10 +6,13 @@ import { EmptyState } from '../components/EmptyState';
 import { SessionCard } from '../components/SessionCard';
 import { useApp } from '../context/AppContext';
 import { USER_ENROLLMENTS } from '../data/dummyData';
+import { useMyAttendances } from '../hooks/useAttendanceData';
 import { colors } from '../theme/colors';
 
 export default function AttendanceScreen() {
-  const { currentUser, sessions, hasAttended, logout } = useApp();
+  const { currentUser, sessions, logout } = useApp();
+  const { data: mine } = useMyAttendances(currentUser?.id);
+  const attendedIds = new Set(mine.map(a => a.sessionId));
 
   const handleLogout = () => {
     logout();
@@ -49,11 +52,15 @@ export default function AttendanceScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>Daftar Sesi Praktikum</Text>
-        <Pressable onPress={() => router.push('/praktikan/riwayat')} style={styles.btnRiwayat}>
+      <Text style={styles.sectionTitle}>Daftar Sesi Praktikum</Text>
+      <View style={styles.pills}>
+        <Pressable onPress={() => router.push('/praktikan/riwayat')} style={styles.pill}>
           <Ionicons name="time-outline" size={16} color={colors.primary} />
-          <Text style={styles.btnRiwayatText}>Riwayat</Text>
+          <Text style={styles.pillText}>Riwayat</Text>
+        </Pressable>
+        <Pressable onPress={() => router.push('/ulasan')} style={styles.pill}>
+          <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.primary} />
+          <Text style={styles.pillText}>Kesan & Pesan</Text>
         </Pressable>
       </View>
     </View>
@@ -68,7 +75,7 @@ export default function AttendanceScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
-          const isAttended = currentUser ? hasAttended(item.id, currentUser.id) : false;
+          const isAttended = attendedIds.has(item.id);
 
           return (
             <SessionCard
@@ -86,7 +93,7 @@ export default function AttendanceScreen() {
                     </Pressable>
                   )}
 
-                  {item.status === 'DIBUKA' && isAttended && (
+                  {isAttended && (
                     <View style={[styles.badge, { backgroundColor: colors.statusSoft.DIBUKA.bg }]}>
                       <Ionicons name="checkmark-circle" size={16} color={colors.statusSoft.DIBUKA.text} />
                       <Text style={[styles.badgeText, { color: colors.statusSoft.DIBUKA.text }]}>
@@ -104,7 +111,7 @@ export default function AttendanceScreen() {
                     </View>
                   )}
 
-                  {item.status === 'DITUTUP' && (
+                  {item.status === 'DITUTUP' && !isAttended && (
                     <View style={[styles.badge, { backgroundColor: colors.statusSoft.DITUTUP.bg }]}>
                       <Ionicons name="lock-closed-outline" size={16} color={colors.statusSoft.DITUTUP.text} />
                       <Text style={[styles.badgeText, { color: colors.statusSoft.DITUTUP.text }]}>
@@ -132,7 +139,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   listContent: { padding: 16, paddingBottom: 32 },
 
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,12 +178,19 @@ const styles = StyleSheet.create({
   btnLogoutPressed: { backgroundColor: 'rgba(255,255,255,0.32)' },
   btnLogoutText: { color: colors.textOnPrimary, fontWeight: '600', fontSize: 13 },
 
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 0 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  btnRiwayat: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primarySoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 },
-  btnRiwayatText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
+  pills: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primarySoft,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  pillText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
 
-  // Footer di SessionCard
   cardFooter: { flexDirection: 'row', alignItems: 'center' },
   btnPresensi: {
     flex: 1,
