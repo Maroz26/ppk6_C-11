@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
-import { listenSessions, setSessionStatus } from '../services/sessionControlService';
 import { Session } from '../types';
 
 const palette = {
@@ -35,17 +34,15 @@ const statusColors: Record<StatusKey, string> = {
 
 export default function AssistantHomeScreen() {
   const { currentUser, sessions, logout, openSession, closeSession } = useApp();
-  const [liveSessions, setLiveSessions] = useState<Session[]>(sessions);
   const [pendingAction, setPendingAction] = useState<{ session: Session; action: 'open' | 'close' } | null>(null);
 
-  useEffect(() => listenSessions(setLiveSessions), []);
 
   const handleLogout = () => {
     logout();
     router.replace('/');
   };
 
-  const sessionSource = liveSessions.length ? liveSessions : sessions;
+  const sessionSource = sessions;
   const sortedSessions = sessionSource
     .filter(session => session.dibuatOleh === currentUser?.id)
     .sort(
@@ -62,27 +59,35 @@ export default function AssistantHomeScreen() {
 
   const initial = currentUser?.nama?.trim()?.charAt(0)?.toUpperCase() ?? '?';
 
-  const confirmSessionAction = async () => {
-    if (!pendingAction || !currentUser) return;
-    const { session, action } = pendingAction;
-    try {
-      if (action === 'open') {
-        await setSessionStatus(session.id, 'DIBUKA', currentUser.id);
-        openSession(session.id);
-      } else {
-        await setSessionStatus(session.id, 'DITUTUP', currentUser.id);
-        closeSession(session.id);
-      }
-      setPendingAction(null);
-    } catch (error) {
-      setPendingAction(null);
-      Alert.alert(
-        'Status sesi gagal diperbarui',
-        error instanceof Error ? error.message : 'Silakan coba lagi.'
-      );
-    }
-  };
+  // const confirmSessionAction = async () => {
+  //   if (!pendingAction || !currentUser) return;
+  //   const { session, action } = pendingAction;
+  //   try {
+  //     if (action === 'open') {
+  //       await setSessionStatus(session.id, 'DIBUKA', currentUser.id);
+  //       openSession(session.id);
+  //     } else {
+  //       await setSessionStatus(session.id, 'DITUTUP', currentUser.id);
+  //       closeSession(session.id);
+  //     }
+  //     setPendingAction(null);
+  //   } catch (error) {
+  //     setPendingAction(null);
+  //     Alert.alert(
+  //       'Status sesi gagal diperbarui',
+  //       error instanceof Error ? error.message : 'Silakan coba lagi.'
+  //     );
+  //   }
+  // };
 
+  const confirmSessionAction = () => {
+    if (!pendingAction) return;
+    const { session, action } = pendingAction;
+    if (action === 'open') openSession(session.id);
+    else closeSession(session.id);
+    setPendingAction(null);
+  };
+  
   const renderHeader = () => (
     <View>
       <View style={styles.header}>

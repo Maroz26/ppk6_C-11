@@ -1,3 +1,15 @@
+// src/services/reviewService.ts
+// Kesan & pesan praktikan disimpan di koleksi reviews Firestore,
+// lengkap dengan label sentimen dari model EDOM (reviewAiService).
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  query,
+  where,
+} from '@react-native-firebase/firestore';
+import { db } from '../config/firebase';
+import { COLLECTIONS } from '../types';
 import { classifyReview } from './reviewAiService';
 
 export type Review = {
@@ -14,14 +26,24 @@ export type Review = {
 type Author = { id: string; nama: string; nim: string };
 export type Unsubscribe = () => void;
 
-let store: Review[] = [];
-const listeners = new Set<() => void>();
-const emit = () => listeners.forEach(l => l());
+type Snapshot = { docs: { id: string; data: () => unknown }[] };
 
+function toReviews(snapshot: Snapshot): Review[] {
+  return snapshot.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<Review, 'id'>) }))
+    // Urutkan di aplikasi (terbaru di atas) supaya tidak perlu indeks gabungan Firestore.
+    .sort((a, b) => b.dibuatPada.localeCompare(a.dibuatPada));
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+// Klasifikasi dijalankan di perangkat sebelum disimpan, lalu teks dan labelnya
+// ditulis bersama ke reviews. Rules hanya mengizinkan praktikan menulis atas namanya sendiri.
 export async function submitReview(sessionId: string, user: Author, teks: string): Promise<Review> {
   const sentimen = await classifyReview(teks);
-  const review: Review = {
-    id: `r${Date.now()}`,
+  const data = {
     sessionId,
     praktikanId: user.id,
     nama: user.nama,
@@ -30,25 +52,34 @@ export async function submitReview(sessionId: string, user: Author, teks: string
     sentimen,
     dibuatPada: new Date().toISOString(),
   };
-  store = [...store, review];
-  emit();
-  return review;
+  const created = await addDoc(collection(db, COLLECTIONS.reviews), data);
+  return { id: created.id, ...data };
 }
 
-function listen(filter: (r: Review) => boolean, onData: (rows: Review[]) => void): Unsubscribe {
-  const push = () => onData(store.filter(filter).sort((a, b) => b.dibuatPada.localeCompare(a.dibuatPada)));
-  listeners.add(push);
-  push();
-  return () => {
-    listeners.delete(push);
-  };
-}
+// Ulasan milik praktikan yang sedang login, realtime.
+// Filter praktikanId wajib: rules menolak praktikan membaca ulasan orang lain.
+export const subscribeMyReviews = (
+  uid: string,
+  onData: (r: Review[]) => void,
+  onError: (e: Error) => void,
+): Unsubscribe =>
+  onSnapshot(
+    query(collection(db, COLLECTIONS.reviews), where('praktikanId', '==', uid)),
+    (snapshot) => onData(toReviews(snapshot)),
+    (error) => onError(toError(error)),
+  );
 
-export const subscribeMyReviews = (uid: string, onData: (r: Review[]) => void, _onError: (e: Error) => void) =>
-  listen(r => r.praktikanId === uid, onData);
-
+// Ulasan untuk asisten, realtime. Tanpa sessionId: semua ulasan.
 export const subscribeReviews = (
   sessionId: string | undefined,
   onData: (r: Review[]) => void,
-  _onError: (e: Error) => void,
-) => listen(r => !sessionId || r.sessionId === sessionId, onData);
+  onError: (e: Error) => void,
+): Unsubscribe => {
+  const reviewsRef = collection(db, COLLECTIONS.reviews);
+  const source = sessionId ? query(reviewsRef, where('sessionId', '==', sessionId)) : reviewsRef;
+  return onSnapshot(
+    source,
+    (snapshot) => onData(toReviews(snapshot)),
+    (error) => onError(toError(error)),
+  );
+};
