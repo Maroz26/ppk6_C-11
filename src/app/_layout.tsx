@@ -7,9 +7,48 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { AppProvider } from '../context/AppContext';
+import { AppProvider, useApp } from '../context/AppContext';
 
 SplashScreen.preventAutoHideAsync();
+
+function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
+  const { authReady, isLoggedIn } = useApp();
+  const ready = fontsReady && authReady;
+
+  // Splash screen ditutup setelah font siap dan sesi login selesai dicek.
+  useEffect(() => {
+    if (ready) {
+      SplashScreen.hideAsync();
+    }
+  }, [ready]);
+
+  if (!ready) {
+    return null;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      {/* Belum login: hanya halaman login dan register. */}
+      <Stack.Protected guard={!isLoggedIn}>
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+      </Stack.Protected>
+      {/* Sudah login: halaman ASSIST. Halaman index mengarahkan sesuai peran. */}
+      <Stack.Protected guard={isLoggedIn}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="token-storage" options={{ headerShown: true, title: 'Uji Access Token' }} />
+        <Stack.Screen name="identitas" />
+        <Stack.Screen name="asisten" />
+        <Stack.Screen name="praktikan" />
+        <Stack.Screen name="sesi/form" />
+        <Stack.Screen name="sesi/[id]" options={{ headerShown: true, title: 'Detail Sesi' }} />
+        <Stack.Screen name="kelola/[id]" options={{ headerShown: true, title: 'Kelola Sesi' }} />
+        <Stack.Screen name="rekap/[id]" options={{ headerShown: true, title: 'Rekap Kehadiran' }} />
+        <Stack.Screen name="testAi" options={{ headerShown: true, title: 'Analisis AI' }} />
+      </Stack.Protected>
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -18,27 +57,9 @@ export default function RootLayout() {
     Poppins_700Bold,
   });
 
-  useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded, error]);
-
-  if (!loaded && !error) {
-    return null;
-  }
   return (
     <AppProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="token-storage" options={{ headerShown: true, title: 'Uji Access Token' }} />
-        <Stack.Screen name="identitas" />
-        <Stack.Screen name="asisten" />
-        <Stack.Screen name="praktikan" />
-        <Stack.Screen name="sesi/[id]" options={{ headerShown: true, title: 'Detail Sesi' }} />
-        <Stack.Screen name="kelola/[id]" options={{ headerShown: true, title: 'Kelola Sesi' }} />
-        <Stack.Screen name="rekap/[id]" options={{ headerShown: true, title: 'Rekap Kehadiran' }} />
-      </Stack>
+      <RootNavigator fontsReady={loaded || !!error} />
     </AppProvider>
   );
 }

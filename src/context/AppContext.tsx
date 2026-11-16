@@ -1,12 +1,24 @@
-import React, { createContext, ReactNode, useContext, useState } from 'react';
-import { DUMMY_SESSIONS, DUMMY_USERS } from '../data/dummyData';
-import { Attendance, AttendanceResult, Role, Session, User } from '../types';
+import { onAuthStateChanged } from '@react-native-firebase/auth';
+import { doc, onSnapshot, updateDoc } from '@react-native-firebase/firestore';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { auth, db } from '../config/firebase';
+import { logoutUser } from '../services/authService';
+import {
+  listenPraktikanList,
+  listenSessionsForUser,
+  scheduleErrorMessage,
+} from '../services/scheduleService';
+import { Attendance, AttendanceResult, COLLECTIONS, Role, Session, User } from '../types';
 
 type AppContextType = {
   sessions: Session[];
+  sessionsError: string;
   attendances: Attendance[];
   currentUser: User | null;
   role: Role | null;
+  authReady: boolean;
+  isLoggedIn: boolean;
+  profileReady: boolean;
   praktikanList: User[];
   asistenList: User[];
   setRole: (role: Role | null) => void;
@@ -23,29 +35,118 @@ type AppContextType = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [sessions, setSessions] = useState<Session[]>(DUMMY_SESSIONS);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsError, setSessionsError] = useState('');
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
+  const [praktikanList, setPraktikanList] = useState<User[]>([]);
 
-  const praktikanList = DUMMY_USERS.filter((u: User) => u.role === 'PRAKTIKAN');
-  const asistenList = DUMMY_USERS.filter((u: User) => u.role === 'ASISTEN');
+  // Halaman pilih identitas sudah tidak dipakai, jadi daftar asisten dikosongkan.
+  const asistenList: User[] = [];
+
+  // Sumber identitas: Firebase Authentication. Profil dan peran dibaca realtime dari users/{uid}.
+  useEffect(() => {
+    let unsubscribeProfile: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = undefined;
+
+      if (!firebaseUser) {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setRole(null);
+        setProfileReady(false);
+        setAuthReady(true);
+        return;
+      }
+
+      setIsLoggedIn(true);
+      setAuthReady(true);
+      unsubscribeProfile = onSnapshot(
+        doc(db, COLLECTIONS.users, firebaseUser.uid),
+        (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data() as Omit<User, 'id'>;
+            setCurrentUser({ id: snapshot.id, ...data });
+            setRole(data.role);
+          } else {
+            setCurrentUser(null);
+            setRole(null);
+          }
+          setProfileReady(true);
+        },
+        () => {
+          // Profil gagal dibaca (misalnya ditolak rules atau tanpa koneksi).
+          setCurrentUser(null);
+          setRole(null);
+          setProfileReady(true);
+        },
+      );
+    });
+
+    return () => {
+      unsubscribeProfile?.();
+      unsubscribeAuth();
+    };
+  }, []);
+
+  const userId = currentUser?.id;
+  const userRole = currentUser?.role;
+
+  // Daftar sesi realtime dari Firestore, tersaring sesuai peran pengguna.
+  useEffect(() => {
+    if (!userId || !userRole) {
+      setSessions([]);
+      setSessionsError('');
+      return;
+    }
+    return listenSessionsForUser(
+      { id: userId, role: userRole },
+      (data) => {
+        setSessions(data);
+        setSessionsError('');
+      },
+      (error) => {
+        setSessions([]);
+        setSessionsError(scheduleErrorMessage(error));
+      },
+    );
+  }, [userId, userRole]);
+
+  // Daftar praktikan realtime dari koleksi users. Hanya asisten yang diizinkan rules.
+  useEffect(() => {
+    if (!userId || userRole !== 'ASISTEN') {
+      setPraktikanList([]);
+      return;
+    }
+    return listenPraktikanList(setPraktikanList, () => setPraktikanList([]));
+  }, [userId, userRole]);
 
   const logout = () => {
     setCurrentUser(null);
     setRole(null);
+    setProfileReady(false);
+    logoutUser().catch(() => {});
   };
 
   const openSession = (id: string) => {
-    setSessions((prev: Session[]) => prev.map((s: Session) => 
-      s.id === id ? { ...s, status: 'DIBUKA', dibukaPada: new Date().toISOString(), dibukaOleh: currentUser?.id || null } : s
-    ));
+    updateDoc(doc(db, COLLECTIONS.sessions, id), {
+      status: 'DIBUKA',
+      dibukaPada: new Date().toISOString(),
+      dibukaOleh: currentUser?.id ?? null,
+    }).catch(() => {});
   };
 
   const closeSession = (id: string) => {
-    setSessions((prev: Session[]) => prev.map((s: Session) => 
-      s.id === id ? { ...s, status: 'DITUTUP', ditutupPada: new Date().toISOString() } : s
-    ));
+    updateDoc(doc(db, COLLECTIONS.sessions, id), {
+      status: 'DITUTUP',
+      ditutupPada: new Date().toISOString(),
+    }).catch(() => {});
   };
 
   const hasAttended = (sessionId: string, praktikanId: string) => {
@@ -87,7 +188,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      sessions, attendances, currentUser, role, praktikanList, asistenList,
+      sessions, sessionsError, attendances, currentUser, role, authReady, isLoggedIn, profileReady,
+      praktikanList, asistenList,
       setRole, setCurrentUser, logout, openSession, closeSession, markAttendance,
       hasAttended, getAttendanceBySession, getAttendanceByPraktikan
     }}>
