@@ -1,31 +1,52 @@
-// src/screens/AssistantRecapScreen.tsx
-import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { EmptyState } from '../components/EmptyState';
 import { RecapRow } from '../components/RecapRow';
 import { StatusBadge } from '../components/StatusBadge';
 import { useApp } from '../context/AppContext';
+import { useSessionAttendances } from '../hooks/useAttendanceData';
+import { fetchRoster, type Praktikan } from '../services/attendanceService';
 import { colors } from '../theme/colors';
 
 export default function AssistantRecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { sessions, praktikanList, getAttendanceBySession } = useApp();
-
+  const { sessions } = useApp();
   const session = sessions.find(s => s.id === id);
-  if (!session) return <EmptyState title="Sesi tidak ditemukan" />;
 
+  const { data: attendances, loading, error } = useSessionAttendances(session?.id);
+  const [roster, setRoster] = useState<Praktikan[]>([]);
+
+  useEffect(() => {
+    if (!session) return undefined;
+    let cancelled = false;
+    fetchRoster(session)
+      .then(r => {
+        if (!cancelled) setRoster(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
   // praktikan yang terdaftar di sesi ini
   const roster = praktikanList.filter(p => session.enrolledStudents.includes(p.id));
   const attendances = getAttendanceBySession(session.id);
 
-  const rows = roster.map(p => ({
-    praktikan: p,
-    attendance: attendances.find(a => a.praktikanId === p.id),
-  }));
+  const rows = useMemo(
+    () =>
+      roster.map(p => ({
+        praktikan: p,
+        attendance: attendances.find(a => a.praktikanId === p.id),
+      })),
+    [roster, attendances],
+  );
 
+  if (!session) return <EmptyState title="Sesi tidak ditemukan" />;
+  if (error) return <EmptyState title="Gagal memuat rekap" desc={error} />;
+
+  const total = roster.length;
   const hadir = rows.filter(r => r.attendance).length;
-  const total = rows.length;
   const percent = total === 0 ? 0 : Math.round((hadir / total) * 100);
 
   return (
@@ -57,10 +78,21 @@ export default function AssistantRecapScreen() {
             <View style={styles.barBg}>
               <View style={[styles.barFill, { width: `${percent}%` }]} />
             </View>
+
+            <Pressable
+              style={styles.btnReview}
+              onPress={() => router.push({ pathname: '/ulasan', params: { sessionId: session.id } })}
+            >
+              <Text style={styles.btnReviewText}>Lihat Kesan & Pesan</Text>
+            </Pressable>
           </View>
         }
         ListEmptyComponent={
-          <EmptyState title="Belum Ada Praktikan" desc="Tidak ada praktikan terdaftar di sesi ini." />
+          loading ? (
+            <ActivityIndicator color={colors.primary} style={styles.loader} />
+          ) : (
+            <EmptyState title="Belum Ada Praktikan" desc="Tidak ada praktikan terdaftar di sesi ini." />
+          )
         }
         renderItem={({ item }) => (
           <RecapRow
@@ -77,6 +109,7 @@ export default function AssistantRecapScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
+  loader: { marginTop: 24 },
   listContent: { padding: 16, paddingBottom: 32 },
   summaryCard: {
     backgroundColor: colors.card,
@@ -86,24 +119,21 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     marginBottom: 16,
   },
-  summaryTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-  },
+  summaryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   title: { flex: 1, fontSize: 18, fontWeight: '800', color: colors.text },
   sub: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   stats: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 16 },
   statNumber: { fontSize: 32, fontWeight: '800', color: colors.primary },
   statTotal: { fontSize: 18, fontWeight: '600', color: colors.textSecondary },
   statLabel: { fontSize: 13, color: colors.textSecondary },
-  barBg: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.border,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
+  barBg: { height: 8, borderRadius: 4, backgroundColor: colors.border, marginTop: 10, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4, backgroundColor: colors.status.DIBUKA },
+  btnReview: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: colors.primarySoft,
+  },
+  btnReviewText: { color: colors.primary, fontWeight: '700', fontSize: 14 },
 });

@@ -29,17 +29,13 @@ const InfoRow = ({ icon, label, value }: InfoRowProps) => (
 
 export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { sessions, role, currentUser, hasAttended, getAttendanceBySession } = useApp();
+  const { sessions, role } = useApp();
 
   const session = sessions.find(s => s.id === id);
 
   if (!session) return <EmptyState title="Sesi tidak ditemukan" />;
 
-  const isAttended = currentUser ? hasAttended(session.id, currentUser.id) : false;
-  const userAttendance = currentUser
-    ? getAttendanceBySession(session.id).find(a => a.praktikanId === currentUser.id)
-    : null;
-
+  
   return (
     <ScrollView
       style={styles.container}
@@ -121,15 +117,7 @@ export default function SessionDetailScreen() {
                 </Text>
               </View>
             )}
-            {session.status === 'DIBUKA' && <AttendanceAction session={session} />}
-            {isAttended && userAttendance && (
-              <View style={[styles.notice, { backgroundColor: colors.statusSoft.DIBUKA.bg }]}>
-                <Ionicons name="checkmark-circle" size={22} color={colors.statusSoft.DIBUKA.text} />
-                <Text style={[styles.noticeText, { color: colors.statusSoft.DIBUKA.text }]}>
-                  Kamu sudah presensi pukul {formatJamDetik(userAttendance.waktu)}
-                </Text>
-              </View>
-            )}
+            <AttendanceAction session={session} />
           </>
         )}
       </View>
