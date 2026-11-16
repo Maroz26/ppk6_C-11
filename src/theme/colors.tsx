@@ -1,30 +1,37 @@
+const palette = {
+  navy: '#112250',
+  sapphire: '#3B507D',
+  taupe: '#BEB7A7',
+  champagne: '#E7E2CE',
+  ivory: '#F5F4F0',
+};
+
 export const colors = {
   // Brand
-  primary: '#2563EB',
-  primaryDark: '#1D4ED8',
-  primaryLight: '#DBEAFE',
-  primarySoft: '#EFF6FF',
+  primary: palette.navy,
+  primaryDark: '#0B1738',
+  primaryLight: palette.champagne,
+  primarySoft: '#EFEBDD',
 
   // Surface
-  background: '#F1F5F9',
+  background: palette.ivory,
   card: '#FFFFFF',
-  border: '#E2E8F0',
+  border: palette.champagne,
 
   // Text
-  text: '#0F172A',
-  textSecondary: '#64748B',
-  textOnPrimary: '#FFFFFF',
+  text: palette.navy,
+  textSecondary: palette.sapphire,
+  textOnPrimary: palette.ivory,
 
   status: {
-    BELUM_DIBUKA: '#64748B',
+    BELUM_DIBUKA: palette.sapphire,
     DIBUKA: '#059669',
-    DITUTUP: '#E11D48'
+    DITUTUP: '#A64F58'
   },
 
   statusSoft: {
-    BELUM_DIBUKA: { bg: '#E2E8F0', text: '#475569' },
+    BELUM_DIBUKA: { bg: palette.champagne, text: palette.sapphire },
     DIBUKA: { bg: '#D1FAE5', text: '#047857' },
-    DITUTUP: { bg: '#FFE4E6', text: '#BE123C' }
+    DITUTUP: { bg: '#F0E7E5', text: '#713D46' }
   }
-  
 };
