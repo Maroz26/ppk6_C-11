@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
-import { listenSessionById, setSessionStatus } from '../services/sessionControlService';
-import { Session } from '../types';
+import { useSessionAttendances } from '../hooks/useAttendanceData';
+import { setSessionStatus } from '../services/sessionControlService';
 import { formatJam } from '../utils/formatTime';
 
 const palette = {
@@ -19,18 +19,14 @@ const palette = {
 
 export default function SessionManagementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { sessions, praktikanList, currentUser, openSession, closeSession, getAttendanceBySession } = useApp();
-  const [liveSession, setLiveSession] = useState<Session | null>(null);
+  const { sessions, praktikanList, currentUser } = useApp();
   const [pendingAction, setPendingAction] = useState<'open' | 'close' | null>(null);
   const [actionFeedback, setActionFeedback] = useState('');
   const [actionError, setActionError] = useState('');
 
-  useEffect(() => {
-    if (!id) return;
-    return listenSessionById(id, setLiveSession);
-  }, [id]);
-
-  const session = liveSession ?? sessions.find(item => item.id === id) ?? null;
+  // sessions dari useApp() sudah realtime dari Firestore.
+  const session = sessions.find(item => item.id === id) ?? null;
+  const { data: attendances } = useSessionAttendances(session?.id);
 
   if (!session) {
     return (
@@ -44,7 +40,7 @@ export default function SessionManagementScreen() {
   const isClosed = session.status === 'DITUTUP';
   const isNotStarted = session.status === 'BELUM_DIBUKA';
   const roster = praktikanList.filter(student => session.enrolledStudents.includes(student.id));
-  const hadir = getAttendanceBySession(session.id).length;
+  const hadir = attendances.length;
   const activeStep = isClosed ? 2 : isOpen ? 1 : 0;
 
   const handleConfirm = async () => {
@@ -56,8 +52,6 @@ export default function SessionManagementScreen() {
     const nextStatus = pendingAction === 'open' ? 'DIBUKA' : 'DITUTUP';
     try {
       await setSessionStatus(session.id, nextStatus, currentUser.id);
-      if (nextStatus === 'DIBUKA') openSession(session.id);
-      else closeSession(session.id);
       setActionFeedback(nextStatus === 'DIBUKA'
         ? 'Sesi berhasil dibuka. Praktikan dapat melakukan presensi.'
         : 'Sesi berhasil ditutup. Presensi telah dikunci.');

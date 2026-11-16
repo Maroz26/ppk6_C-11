@@ -1,27 +1,46 @@
-// src/services/attendanceService.ts  (VERSI DUMMY, diganti di Fase B)
-import { DUMMY_USERS, USER_ENROLLMENTS } from '../data/dummyData';
-import { Attendance, AttendanceResult, Session } from '../types';
+// src/services/attendanceService.ts
+// Presensi disimpan di koleksi attendances Firestore dengan id {sessionId}_{uid},
+// sehingga satu praktikan hanya bisa punya satu presensi per sesi.
+import {
+  collection,
+  doc,
+  getDoc,
+  onSnapshot,
+  query,
+  runTransaction,
+  where,
+} from '@react-native-firebase/firestore';
+import { db } from '../config/firebase';
+import { Attendance, AttendanceResult, COLLECTIONS, Session, User } from '../types';
 
 export type Praktikan = { id: string; nama: string; nim: string };
 export type Unsubscribe = () => void;
 
 export const attendanceId = (sessionId: string, uid: string) => `${sessionId}_${uid}`;
 
-let store: Attendance[] = [];
-const listeners = new Set<() => void>();
-const emit = () => listeners.forEach(l => l());
+type Snapshot = { docs: { id: string; data: () => unknown }[] };
+
+function toAttendances(snapshot: Snapshot): Attendance[] {
+  return snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Attendance, 'id'>) }));
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+// Kesalahan aturan presensi yang sudah punya pesan sendiri di AttendanceAction.
+class AttendanceRuleError extends Error {
+  constructor(public reason: 'SESI_BELUM_DIBUKA' | 'SESI_DITUTUP' | 'SUDAH_PRESENSI') {
+    super(reason);
+  }
+}
 
 export async function submitAttendance(
   session: Session,
   user: Praktikan,
   catatan: string,
 ): Promise<AttendanceResult> {
-  if (session.status === 'BELUM_DIBUKA') return { ok: false, reason: 'SESI_BELUM_DIBUKA' };
-  if (session.status === 'DITUTUP') return { ok: false, reason: 'SESI_DITUTUP' };
-
   const id = attendanceId(session.id, user.id);
-  if (store.some(a => a.id === id)) return { ok: false, reason: 'SUDAH_PRESENSI' };
-
   const record: Attendance = {
     id,
     sessionId: session.id,
@@ -31,48 +50,67 @@ export async function submitAttendance(
     waktu: new Date().toISOString(),
     catatan,
   };
-  store = [...store, record];
-  emit();
-  return { ok: true, record };
+
+  try {
+    // Status sesi dan presensi sebelumnya diperiksa di server dalam satu transaksi,
+    // jadi presensi ganda tetap tertolak walaupun tombol ditekan dua kali.
+    await runTransaction(db, async (transaction) => {
+      const sessionSnap = await transaction.get(doc(db, COLLECTIONS.sessions, session.id));
+      const status = sessionSnap.exists() ? (sessionSnap.data() as Session).status : 'DITUTUP';
+      if (status === 'BELUM_DIBUKA') throw new AttendanceRuleError('SESI_BELUM_DIBUKA');
+      if (status === 'DITUTUP') throw new AttendanceRuleError('SESI_DITUTUP');
+
+      const attendanceRef = doc(db, COLLECTIONS.attendances, id);
+      const existing = await transaction.get(attendanceRef);
+      if (existing.exists()) throw new AttendanceRuleError('SUDAH_PRESENSI');
+
+      const { id: _id, ...data } = record;
+      transaction.set(attendanceRef, data);
+    });
+    return { ok: true, record };
+  } catch (error) {
+    if (error instanceof AttendanceRuleError) return { ok: false, reason: error.reason };
+    throw error;
+  }
 }
 
-function listen(
-  filter: (a: Attendance) => boolean,
-  sort: (a: Attendance, b: Attendance) => number,
-  onData: (rows: Attendance[]) => void,
-): Unsubscribe {
-  const push = () => onData(store.filter(filter).sort(sort));
-  listeners.add(push);
-  push();
-  return () => {
-    listeners.delete(push);
-  };
-}
-
+// Daftar hadir satu sesi untuk asisten, realtime (urut dari yang paling awal hadir).
 export const subscribeAttendanceBySession = (
   sessionId: string,
   onData: (rows: Attendance[]) => void,
-  _onError: (e: Error) => void,
-) =>
-  listen(
-    a => a.sessionId === sessionId,
-    (a, b) => a.waktu.localeCompare(b.waktu),
-    onData,
+  onError: (e: Error) => void,
+): Unsubscribe =>
+  onSnapshot(
+    query(collection(db, COLLECTIONS.attendances), where('sessionId', '==', sessionId)),
+    (snapshot) => onData(toAttendances(snapshot).sort((a, b) => a.waktu.localeCompare(b.waktu))),
+    (error) => onError(toError(error)),
   );
 
+// Riwayat presensi milik praktikan, realtime (terbaru di atas).
+// Filter praktikanId wajib: rules menolak praktikan membaca presensi orang lain.
 export const subscribeAttendanceByPraktikan = (
   uid: string,
   onData: (rows: Attendance[]) => void,
-  _onError: (e: Error) => void,
-) =>
-  listen(
-    a => a.praktikanId === uid,
-    (a, b) => b.waktu.localeCompare(a.waktu),
-    onData,
+  onError: (e: Error) => void,
+): Unsubscribe =>
+  onSnapshot(
+    query(collection(db, COLLECTIONS.attendances), where('praktikanId', '==', uid)),
+    (snapshot) => onData(toAttendances(snapshot).sort((a, b) => b.waktu.localeCompare(a.waktu))),
+    (error) => onError(toError(error)),
   );
 
+// Daftar praktikan yang terdaftar pada sesi, diambil dari profil di koleksi users.
 export async function fetchRoster(session: Session): Promise<Praktikan[]> {
-  return DUMMY_USERS.filter(
-    u => u.role === 'PRAKTIKAN' && USER_ENROLLMENTS[u.id]?.includes(session.id),
-  ).map(({ id, nama, nim }) => ({ id, nama, nim }));
+  const uids = session.enrolledStudents ?? [];
+  const profiles = await Promise.all(
+    uids.map(async (uid) => {
+      const snapshot = await getDoc(doc(db, COLLECTIONS.users, uid));
+      if (!snapshot.exists()) return null;
+      const data = snapshot.data() as Omit<User, 'id'>;
+      return { id: snapshot.id, nama: data.nama, nim: data.nim };
+    }),
+  );
+  return profiles
+    .filter((p): p is Praktikan => p !== null)
+    .sort((a, b) => a.nama.localeCompare(b.nama));
 }
