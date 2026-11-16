@@ -196,8 +196,8 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   pillText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
-<!--   sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 0 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }, -->
+// sectionTitle: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 0 },
+// sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }, -->
   btnAjukanIzin: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, borderRadius: 12, backgroundColor: colors.primarySoft, marginBottom: 14 },
   btnAjukanIzinText: { flex: 1, color: colors.primary, fontWeight: '700', fontSize: 13 },
   btnRiwayat: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primarySoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 },

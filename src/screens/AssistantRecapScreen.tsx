@@ -29,9 +29,6 @@ export default function AssistantRecapScreen() {
       cancelled = true;
     };
   }, [session]);
-  // praktikan yang terdaftar di sesi ini
-  const roster = praktikanList.filter(p => session.enrolledStudents.includes(p.id));
-  const attendances = getAttendanceBySession(session.id);
 
   const rows = useMemo(
     () =>
