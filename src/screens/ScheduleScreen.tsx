@@ -1,312 +1,235 @@
-import { useApp } from '@/context/AppContext';
-import { colors } from '@/theme/colors';
-import { User } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useApp } from '../context/AppContext';
+import { deleteSession, scheduleErrorMessage } from '../services/scheduleService';
+import { palette } from '../theme';
+import { Session, SessionStatus } from '../types';
 
-export default function IdentitySelectScreen() {
-  const { role, praktikanList, asistenList, setCurrentUser } = useApp();
-  const [search, setSearch] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+const STATUS: Record<SessionStatus, { label: string; background: string; text: string }> = {
+  BELUM_DIBUKA: { label: 'Belum dibuka', background: palette.champagne, text: palette.navy },
+  DIBUKA: { label: 'Dibuka', background: '#DDE9E0', text: '#355C49' },
+  DITUTUP: { label: 'Ditutup', background: '#F0E7E5', text: '#713D46' },
+};
 
-  const users = role === 'ASISTEN' ? asistenList : praktikanList;
-  const filtered = users.filter(
-    u => u.nama.toLowerCase().includes(search.toLowerCase()) || u.nim.includes(search)
+export default function ScheduleScreen() {
+  // Daftar sesi di AppContext berasal dari onSnapshot Firestore:
+  // asisten menerima semua sesi, praktikan hanya sesi yang ia ikuti.
+  const { sessions, sessionsError, currentUser, role } = useApp();
+  const isAsisten = role === 'ASISTEN';
+
+  const [target, setTarget] = useState<Session | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  function closeConfirm() {
+    if (busy) return;
+    setTarget(null);
+    setMessage('');
+  }
+
+  async function confirmDelete() {
+    if (!target) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await deleteSession(target.id);
+      setTarget(null);
+    } catch (error) {
+      setMessage(scheduleErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const header = (
+    <View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()} style={styles.back} hitSlop={8}>
+        <Ionicons name="arrow-back" size={20} color={palette.ivory} />
+      </Pressable>
+      <Text style={styles.eyebrow}>{isAsisten ? 'JADWAL ASISTEN' : 'JADWAL PRAKTIKAN'}</Text>
+      <Text style={styles.pageTitle}>Jadwal praktikum</Text>
+      <Text style={styles.pageDescription}>
+        {isAsisten
+          ? 'Tambah, ubah, atau hapus sesi praktikum. Perubahan langsung terlihat di perangkat praktikan.'
+          : 'Sesi praktikum yang kamu ikuti. Daftar ini diperbarui otomatis.'}
+      </Text>
+      {isAsisten && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/sesi/form')}
+          style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+        >
+          <Ionicons name="add" size={20} color={palette.navy} />
+          <Text style={styles.addButtonText}>Tambah sesi</Text>
+        </Pressable>
+      )}
+    </View>
   );
 
-  const handleMasuk = () => {
-    if (selectedUser) {
-      setCurrentUser(selectedUser);
-      setModalVisible(false);
-      router.replace(role === 'ASISTEN' ? '/asisten' : '/praktikan');
-    }
-  };
-
-  const roleLabel = role === 'ASISTEN' ? 'Asisten' : 'Praktikan';
+  const empty = sessionsError ? (
+    <View style={styles.emptyCard} accessibilityRole="alert">
+      <Ionicons name="cloud-offline-outline" size={26} color={palette.champagne} />
+      <Text style={styles.emptyTitle}>Jadwal gagal dimuat</Text>
+      <Text style={styles.emptyDescription}>{sessionsError}</Text>
+    </View>
+  ) : (
+    <View style={styles.emptyCard}>
+      <Ionicons name="calendar-outline" size={26} color={palette.champagne} />
+      <Text style={styles.emptyTitle}>Belum ada jadwal</Text>
+      <Text style={styles.emptyDescription}>
+        {isAsisten
+          ? 'Tekan Tambah sesi untuk membuat jadwal praktikum pertama.'
+          : 'Sesi akan muncul di sini setelah asisten mendaftarkanmu.'}
+      </Text>
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerWrap}>
-        <Pressable onPress={() => router.back()} style={styles.btnBack} hitSlop={8}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
-        <View style={styles.headerText}>
-          <Text style={styles.header}>Pilih Identitas</Text>
-          <View style={styles.roleChip}>
-            <Text style={styles.roleChipText}>{roleLabel}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Search */}
-      <View style={styles.searchWrap}>
-        <Ionicons name="search-outline" size={20} color={colors.textSecondary} />
-        <TextInput
-          style={styles.input}
-          placeholder="Cari nama atau NIM..."
-          placeholderTextColor={colors.textSecondary}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
-          </Pressable>
-        )}
-      </View>
-
-      {/* List */}
+    <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
-        data={filtered}
-        keyExtractor={item => item.id}
+        data={sessions}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={header}
+        ListEmptyComponent={empty}
         renderItem={({ item }) => {
-          const selected = selectedUser?.id === item.id;
+          const status = STATUS[item.status];
+          const jumlah = item.enrolledStudents?.length ?? 0;
+          const isOwner = item.dibuatOleh === currentUser?.id;
           return (
             <Pressable
-              style={({ pressed }) => [
-                styles.userCard,
-                selected && styles.userCardSelected,
-                pressed && !selected && styles.userCardPressed,
-              ]}
-              onPress={() => setSelectedUser(item)}
+              onPress={() => router.push(`/sesi/${item.id}`)}
+              style={({ pressed }) => [styles.card, pressed && styles.pressed]}
             >
-              <View style={[styles.avatar, selected && styles.avatarSelected]}>
-                <Text style={[styles.avatarText, selected && styles.avatarTextSelected]}>
-                  {item.nama.trim().charAt(0).toUpperCase()}
-                </Text>
+              <View style={styles.cardTop}>
+                <Text style={styles.cardEyebrow}>PRAKTIKUM · KELAS {item.kelas.toUpperCase()}</Text>
+                <View style={[styles.badge, { backgroundColor: status.background }]}>
+                  <Text style={[styles.badgeText, { color: status.text }]}>{status.label}</Text>
+                </View>
               </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName} numberOfLines={1}>
-                  {item.nama}
-                </Text>
-                <Text style={styles.userNim}>{item.nim}</Text>
-              </View>
-              {selected ? (
-                <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-              ) : (
-                <View style={styles.radio} />
+              <Text style={styles.cardTitle}>{item.praktikum}</Text>
+              <Text style={styles.cardMeta}>
+                Pertemuan {item.pertemuan} · {item.tanggal} · {item.jamMulai}–{item.jamSelesai}
+              </Text>
+              <Text style={styles.cardMeta}>{item.ruang}</Text>
+              <Text style={styles.cardMateri}>{item.materi}</Text>
+
+              {isAsisten && (
+                <>
+                  <Text style={styles.cardMeta}>{jumlah} praktikan terdaftar</Text>
+                  <View style={styles.actions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => router.push(`/sesi/form?id=${item.id}`)}
+                      style={({ pressed }) => [styles.actionButton, styles.editButton, pressed && styles.pressed]}
+                    >
+                      <Ionicons name="create-outline" size={16} color={palette.navy} />
+                      <Text style={styles.editText}>Ubah</Text>
+                    </Pressable>
+                    {isOwner && (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => setTarget(item)}
+                        style={({ pressed }) => [styles.actionButton, styles.deleteButton, pressed && styles.pressed]}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#713D46" />
+                        <Text style={styles.deleteText}>Hapus</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </>
               )}
             </Pressable>
           );
         }}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="person-outline" size={32} color={colors.textSecondary} />
-            <Text style={styles.emptyText}>Tidak ada hasil untuk "{search}"</Text>
-          </View>
-        }
       />
 
-      {/* Tombol masuk */}
-      <Pressable
-        style={({ pressed }) => [
-          styles.btnMasuk,
-          !selectedUser && styles.btnDisabled,
-          pressed && selectedUser && styles.btnMasukPressed,
-        ]}
-        disabled={!selectedUser}
-        onPress={() => setModalVisible(true)}
-      >
-        <Text style={[styles.btnMasukText, !selectedUser && styles.btnDisabledText]}>Masuk</Text>
-        <Ionicons
-          name="arrow-forward"
-          size={18}
-          color={selectedUser ? colors.textOnPrimary : colors.textSecondary}
-        />
-      </Pressable>
-
-      {/* Modal konfirmasi */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalBg}>
-          <View style={styles.bottomSheet}>
-            <View style={styles.handle} />
-            <View style={styles.modalAvatar}>
-              <Text style={styles.modalAvatarText}>
-                {selectedUser?.nama?.trim()?.charAt(0)?.toUpperCase()}
-              </Text>
-            </View>
-            <Text style={styles.modalTitle}>Konfirmasi Masuk</Text>
-            <Text style={styles.modalDesc}>
-              Masuk sebagai <Text style={styles.modalBold}>{selectedUser?.nama}</Text>
+      {/* Konfirmasi sebelum menghapus sesi. */}
+      <Modal transparent animationType="fade" visible={!!target} onRequestClose={closeConfirm}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Hapus sesi?</Text>
+            <Text style={styles.modalText}>
+              {target ? `${target.praktikum} · Kelas ${target.kelas} · Pertemuan ${target.pertemuan}` : ''}
             </Text>
-            <Text style={styles.modalNim}>NIM: {selectedUser?.nim}</Text>
-
-            <View style={styles.modalActions}>
+            <Text style={styles.modalText}>Sesi yang dihapus tidak dapat dikembalikan.</Text>
+            {!!message && <Text style={styles.error} accessibilityRole="alert">{message}</Text>}
+            <View style={styles.actions}>
               <Pressable
-                style={({ pressed }) => [styles.btnCancel, pressed && styles.btnCancelPressed]}
-                onPress={() => setModalVisible(false)}
+                accessibilityRole="button"
+                onPress={closeConfirm}
+                disabled={busy}
+                style={({ pressed }) => [styles.actionButton, styles.editButton, pressed && styles.pressed]}
               >
-                <Text style={styles.btnCancelText}>Batal</Text>
+                <Text style={styles.editText}>Batal</Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.btnConfirm, pressed && styles.btnMasukPressed]}
-                onPress={handleMasuk}
+                accessibilityRole="button"
+                onPress={confirmDelete}
+                disabled={busy}
+                style={({ pressed }) => [styles.actionButton, styles.confirmButton, (pressed || busy) && styles.pressed]}
               >
-                <Text style={styles.btnConfirmText}>Ya, Masuk</Text>
+                <Text style={styles.confirmText}>{busy ? 'Menghapus...' : 'Hapus'}</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: colors.background },
-
-  // Header
-  headerWrap: { flexDirection: 'row', alignItems: 'center', marginTop: 40, marginBottom: 20 },
-  btnBack: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+  container: { flex: 1, backgroundColor: palette.navy },
+  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
+  back: {
+    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: palette.sapphire, marginBottom: 16,
   },
-  headerText: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  header: { fontSize: 22, fontWeight: '800', color: colors.text },
-  roleChip: {
-    backgroundColor: colors.primaryLight,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
+  eyebrow: { color: palette.taupe, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
+  pageTitle: { color: palette.ivory, fontSize: 28, fontWeight: '700', marginTop: 5 },
+  pageDescription: { color: palette.champagne, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 18 },
+  addButton: {
+    minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: palette.champagne, borderRadius: 13, marginBottom: 18,
   },
-  roleChipText: { fontSize: 12, fontWeight: '700', color: colors.primaryDark },
-
-  // Search
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.card,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 16,
+  addButtonText: { color: palette.navy, fontSize: 13, fontWeight: '700' },
+  pressed: { opacity: 0.75 },
+  card: { padding: 16, backgroundColor: palette.ivory, borderRadius: 18, marginBottom: 12 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  cardEyebrow: { flex: 1, color: palette.sapphire, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
+  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  badgeText: { fontSize: 10, fontWeight: '700' },
+  cardTitle: { color: palette.navy, fontSize: 18, fontWeight: '700', marginTop: 10 },
+  cardMeta: { color: palette.sapphire, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  cardMateri: { color: palette.navy, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  actionButton: {
+    flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    borderRadius: 13,
   },
-  input: { flex: 1, paddingVertical: 12, fontSize: 15, color: colors.text },
-
-  // List
-  listContent: { paddingBottom: 8 },
-  userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+  editButton: { backgroundColor: palette.champagne, borderWidth: 1, borderColor: palette.taupe },
+  editText: { color: palette.navy, fontSize: 13, fontWeight: '700' },
+  deleteButton: { backgroundColor: '#F0E7E5', borderWidth: 1, borderColor: '#D9C5C6' },
+  deleteText: { color: '#713D46', fontSize: 13, fontWeight: '700' },
+  confirmButton: { backgroundColor: '#713D46' },
+  confirmText: { color: palette.ivory, fontSize: 13, fontWeight: '700' },
+  emptyCard: {
+    alignItems: 'center', backgroundColor: palette.sapphire, borderWidth: 1, borderColor: '#52658A',
+    borderRadius: 18, padding: 22,
   },
-  userCardPressed: { backgroundColor: colors.primarySoft },
-  userCardSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+  emptyTitle: { color: palette.ivory, fontSize: 14, fontWeight: '700', marginTop: 9 },
+  emptyDescription: { color: palette.champagne, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(7,17,40,0.7)' },
+  modalCard: { padding: 20, borderRadius: 20, backgroundColor: palette.ivory },
+  modalTitle: { color: palette.navy, fontSize: 20, fontWeight: '700' },
+  modalText: { color: palette.sapphire, fontSize: 13, lineHeight: 19, marginTop: 6 },
+  error: {
+    color: '#713D46', backgroundColor: '#F0E7E5', borderRadius: 10, padding: 10,
+    fontSize: 12, lineHeight: 18, marginTop: 10,
   },
-  avatarSelected: { backgroundColor: colors.primary },
-  avatarText: { fontSize: 18, fontWeight: '700', color: colors.textSecondary },
-  avatarTextSelected: { color: colors.textOnPrimary },
-  userInfo: { flex: 1, marginRight: 8 },
-  userName: { fontSize: 16, fontWeight: '700', color: colors.text },
-  userNim: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: colors.border,
-  },
-  empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
-  emptyText: { fontSize: 14, color: colors.textSecondary },
-
-  // Tombol masuk
-  btnMasuk: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    borderRadius: 14,
-    marginTop: 8,
-  },
-  btnMasukPressed: { backgroundColor: colors.primaryDark },
-  btnDisabled: { backgroundColor: colors.border },
-  btnMasukText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 16 },
-  btnDisabledText: { color: colors.textSecondary },
-
-  // Modal
-  modalBg: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.55)' },
-  bottomSheet: {
-    backgroundColor: colors.card,
-    padding: 24,
-    paddingBottom: 32,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    alignItems: 'center',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    marginBottom: 20,
-  },
-  modalAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  modalAvatarText: { fontSize: 26, fontWeight: '800', color: colors.primaryDark },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 6 },
-  modalDesc: { fontSize: 15, color: colors.textSecondary, textAlign: 'center' },
-  modalBold: { fontWeight: '700', color: colors.text },
-  modalNim: { fontSize: 13, color: colors.textSecondary, marginTop: 4, marginBottom: 24 },
-  modalActions: { flexDirection: 'row', gap: 10, alignSelf: 'stretch' },
-  btnCancel: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: colors.primaryLight,
-  },
-  btnCancelPressed: { backgroundColor: colors.primaryLight },
-  btnCancelText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
-  btnConfirm: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-  },
-  btnConfirmText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
 });
