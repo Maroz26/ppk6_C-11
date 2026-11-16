@@ -17,7 +17,7 @@ const STATUS: Record<SessionStatus, { label: string; background: string; text: s
 export default function ScheduleScreen() {
   // Daftar sesi di AppContext berasal dari onSnapshot Firestore:
   // asisten menerima semua sesi, praktikan hanya sesi yang ia ikuti.
-  const { sessions, currentUser, role } = useApp();
+  const { sessions, sessionsError, currentUser, role } = useApp();
   const isAsisten = role === 'ASISTEN';
 
   const [target, setTarget] = useState<Session | null>(null);
@@ -69,6 +69,24 @@ export default function ScheduleScreen() {
     </View>
   );
 
+  const empty = sessionsError ? (
+    <View style={styles.emptyCard} accessibilityRole="alert">
+      <Ionicons name="cloud-offline-outline" size={26} color={palette.champagne} />
+      <Text style={styles.emptyTitle}>Jadwal gagal dimuat</Text>
+      <Text style={styles.emptyDescription}>{sessionsError}</Text>
+    </View>
+  ) : (
+    <View style={styles.emptyCard}>
+      <Ionicons name="calendar-outline" size={26} color={palette.champagne} />
+      <Text style={styles.emptyTitle}>Belum ada jadwal</Text>
+      <Text style={styles.emptyDescription}>
+        {isAsisten
+          ? 'Tekan Tambah sesi untuk membuat jadwal praktikum pertama.'
+          : 'Sesi akan muncul di sini setelah asisten mendaftarkanmu.'}
+      </Text>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
@@ -77,17 +95,7 @@ export default function ScheduleScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={header}
-        ListEmptyComponent={
-          <View style={styles.emptyCard}>
-            <Ionicons name="calendar-outline" size={26} color={palette.champagne} />
-            <Text style={styles.emptyTitle}>Belum ada jadwal</Text>
-            <Text style={styles.emptyDescription}>
-              {isAsisten
-                ? 'Tekan Tambah sesi untuk membuat jadwal praktikum pertama.'
-                : 'Sesi akan muncul di sini setelah asisten mendaftarkanmu.'}
-            </Text>
-          </View>
-        }
+        ListEmptyComponent={empty}
         renderItem={({ item }) => {
           const status = STATUS[item.status];
           const jumlah = item.enrolledStudents?.length ?? 0;

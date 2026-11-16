@@ -2,13 +2,17 @@ import { onAuthStateChanged } from '@react-native-firebase/auth';
 import { doc, onSnapshot, updateDoc } from '@react-native-firebase/firestore';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../config/firebase';
-import { DUMMY_USERS } from '../data/dummyData';
 import { logoutUser } from '../services/authService';
-import { listenSessionsForUser } from '../services/scheduleService';
+import {
+  listenPraktikanList,
+  listenSessionsForUser,
+  scheduleErrorMessage,
+} from '../services/scheduleService';
 import { Attendance, AttendanceResult, COLLECTIONS, Role, Session, User } from '../types';
 
 type AppContextType = {
   sessions: Session[];
+  sessionsError: string;
   attendances: Attendance[];
   currentUser: User | null;
   role: Role | null;
@@ -32,15 +36,17 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsError, setSessionsError] = useState('');
   const [attendances, setAttendances] = useState<Attendance[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const [praktikanList, setPraktikanList] = useState<User[]>([]);
 
-  const praktikanList = DUMMY_USERS.filter((u: User) => u.role === 'PRAKTIKAN');
-  const asistenList = DUMMY_USERS.filter((u: User) => u.role === 'ASISTEN');
+  // Halaman pilih identitas sudah tidak dipakai, jadi daftar asisten dikosongkan.
+  const asistenList: User[] = [];
 
   // Sumber identitas: Firebase Authentication. Profil dan peran dibaca realtime dari users/{uid}.
   useEffect(() => {
@@ -89,19 +95,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Daftar sesi realtime dari Firestore, tersaring sesuai peran pengguna.
   const userId = currentUser?.id;
   const userRole = currentUser?.role;
+
+  // Daftar sesi realtime dari Firestore, tersaring sesuai peran pengguna.
   useEffect(() => {
     if (!userId || !userRole) {
       setSessions([]);
+      setSessionsError('');
       return;
     }
     return listenSessionsForUser(
       { id: userId, role: userRole },
-      setSessions,
-      () => setSessions([]),
+      (data) => {
+        setSessions(data);
+        setSessionsError('');
+      },
+      (error) => {
+        setSessions([]);
+        setSessionsError(scheduleErrorMessage(error));
+      },
     );
+  }, [userId, userRole]);
+
+  // Daftar praktikan realtime dari koleksi users. Hanya asisten yang diizinkan rules.
+  useEffect(() => {
+    if (!userId || userRole !== 'ASISTEN') {
+      setPraktikanList([]);
+      return;
+    }
+    return listenPraktikanList(setPraktikanList, () => setPraktikanList([]));
   }, [userId, userRole]);
 
   const logout = () => {
@@ -138,7 +161,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (hasAttended(sessionId, currentUser.id)) return { ok: false, reason: 'SUDAH_PRESENSI' };
 
     const record: Attendance = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: `${sessionId}_${currentUser.id}`,
       sessionId,
       praktikanId: currentUser.id,
       nama: currentUser.nama,
@@ -165,7 +188,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      sessions, attendances, currentUser, role, authReady, isLoggedIn, profileReady,
+      sessions, sessionsError, attendances, currentUser, role, authReady, isLoggedIn, profileReady,
       praktikanList, asistenList,
       setRole, setCurrentUser, logout, openSession, closeSession, markAttendance,
       hasAttended, getAttendanceBySession, getAttendanceByPraktikan
