@@ -1,272 +1,275 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
+import { useEffect, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ConfirmModal from '../components/ConfirmModal';
-import CyberpunkSignal from '../components/CyberpunkSignal';
-import { StatusBadge } from '../components/StatusBadge';
 import { useApp } from '../context/AppContext';
-import { USER_ENROLLMENTS } from '../data/dummyData';
+import { listenSessionById, setSessionStatus } from '../services/sessionControlService';
+import { Session } from '../types';
 import { formatJam } from '../utils/formatTime';
 
+const palette = {
+  navy: '#112250',
+  sapphire: '#3B507D',
+  taupe: '#BEB7A7',
+  champagne: '#E7E2CE',
+  ivory: '#F5F4F0',
+  success: '#B7D9C5',
+  danger: '#E4A5A9',
+};
 
 export default function SessionManagementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { sessions, praktikanList, openSession, closeSession, getAttendanceBySession } = useApp();
-  const session = sessions.find((s) => s.id === id);
+  const { sessions, praktikanList, currentUser, openSession, closeSession, getAttendanceBySession } = useApp();
+  const [liveSession, setLiveSession] = useState<Session | null>(null);
   const [pendingAction, setPendingAction] = useState<'open' | 'close' | null>(null);
   const [actionFeedback, setActionFeedback] = useState('');
+  const [actionError, setActionError] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    return listenSessionById(id, setLiveSession);
+  }, [id]);
+
+  const session = liveSession ?? sessions.find(item => item.id === id) ?? null;
 
   if (!session) {
     return (
-      <SafeAreaView style={styles.center} edges={['left', 'right']}>
-        <Text>Sesi tidak ditemukan.</Text>
+      <SafeAreaView style={styles.center} edges={['top', 'left', 'right']}>
+        <Text style={styles.bodyText}>Sesi tidak ditemukan.</Text>
       </SafeAreaView>
     );
   }
 
   const isOpen = session.status === 'DIBUKA';
   const isClosed = session.status === 'DITUTUP';
-  const isBelum = session.status === 'BELUM_DIBUKA';
-  const roster = praktikanList.filter((p) => USER_ENROLLMENTS[p.id]?.includes(session.id));
+  const isNotStarted = session.status === 'BELUM_DIBUKA';
+  const roster = praktikanList.filter(student => session.enrolledStudents.includes(student.id));
   const hadir = getAttendanceBySession(session.id).length;
   const activeStep = isClosed ? 2 : isOpen ? 1 : 0;
 
-  const handleConfirm = () => {
-    if (pendingAction === 'open') {
-      openSession(session.id);
-      setActionFeedback('Sesi berhasil dibuka. Praktikan sekarang dapat melakukan presensi.');
-    } else if (pendingAction === 'close') {
-      closeSession(session.id);
-      setActionFeedback('Sesi berhasil ditutup. Presensi untuk sesi ini sudah dikunci.');
+  const handleConfirm = async () => {
+    if (!currentUser || !pendingAction) {
+      setActionError('Identitas asisten tidak tersedia.');
+      return;
     }
-    setPendingAction(null);
+
+    const nextStatus = pendingAction === 'open' ? 'DIBUKA' : 'DITUTUP';
+    try {
+      await setSessionStatus(session.id, nextStatus, currentUser.id);
+      if (nextStatus === 'DIBUKA') openSession(session.id);
+      else closeSession(session.id);
+      setActionFeedback(nextStatus === 'DIBUKA'
+        ? 'Sesi berhasil dibuka. Praktikan dapat melakukan presensi.'
+        : 'Sesi berhasil ditutup. Presensi telah dikunci.');
+      setActionError('');
+      setPendingAction(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Status sesi gagal diperbarui.');
+      setPendingAction(null);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.page}>
-        <Animated.View entering={FadeInDown.duration(380).reduceMotion(ReduceMotion.System)}>
-          <Text style={styles.eyebrow}>SESSION CONTROL</Text>
-          <Text style={styles.pageTitle}>Detail Sesi</Text>
-        </Animated.View>
+          <Text style={styles.eyebrow}>KONTROL SESI</Text>
+          <Text style={styles.pageTitle}>Detail sesi</Text>
 
-        <Animated.View
-          entering={FadeInDown.delay(80).duration(430).reduceMotion(ReduceMotion.System)}
-          style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <Text style={styles.heroLabel}>◈ PRAKTIKUM // KELAS {session.kelas}</Text>
-            <StatusBadge status={session.status} />
-          </View>
-          <Text style={styles.nama}>{session.praktikum}</Text>
-          <Text style={styles.heroCaption}>Kelola sesi dan pantau status presensi.</Text>
-          <View style={styles.heroBottom}>
-            <View style={styles.heroInfo}>
-              <Text style={styles.heroInfoLabel}>JADWAL</Text>
-              <Text style={styles.heroInfoValue}>{session.tanggal}</Text>
-              <Text style={styles.heroInfoValue}>{session.jamMulai}–{session.jamSelesai}</Text>
+          <View style={styles.heroCard}>
+            <View style={styles.heroTop}>
+              <Text style={styles.heroLabel}>{session.praktikum} · Kelas {session.kelas}</Text>
+              <View style={styles.statusBadge}>
+                <Text style={styles.statusBadgeText}>
+                  {isOpen ? 'DIBUKA' : isClosed ? 'DITUTUP' : 'BELUM DIBUKA'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.heroInfo}>
-              <Text style={styles.heroInfoLabel}>RUANG</Text>
-              <Text style={styles.heroInfoValue}>{session.ruang}</Text>
+            <Text style={styles.sessionName}>{session.praktikum}</Text>
+            <Text style={styles.heroCaption}>Atur status sesi dan pantau kehadiran praktikan.</Text>
+            <View style={styles.heroDivider} />
+            <View style={styles.heroBottom}>
+              <View style={styles.heroInfo}>
+                <Text style={styles.infoLabel}>JADWAL</Text>
+                <Text style={styles.infoValue}>{session.tanggal}</Text>
+                <Text style={styles.infoValue}>{session.jamMulai}–{session.jamSelesai}</Text>
+              </View>
+              <View style={styles.heroInfo}>
+                <Text style={styles.infoLabel}>RUANG</Text>
+                <Text style={styles.infoValue}>{session.ruang}</Text>
+              </View>
+              <View style={styles.heroInfo}>
+                <Text style={styles.infoLabel}>PERTEMUAN</Text>
+                <Text style={styles.infoValue}>{session.pertemuan}</Text>
+              </View>
             </View>
-          </View>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(160).duration(450).reduceMotion(ReduceMotion.System)}
-          style={styles.statusCard}>
-          <View style={styles.statusTitleRow}>
-            <View style={styles.statusIcon}>
-              {isOpen
-                ? <CyberpunkSignal size={8} />
-                : <Text style={styles.statusIconText}>{isClosed ? '✓' : '○'}</Text>}
-            </View>
-            <View style={styles.statusHeading}>
-              <Text style={styles.sectionTitle}>Status sesi</Text>
-              <Text style={styles.statusSubtitle}>
-                {isOpen ? 'Presensi sedang tersedia' : isClosed ? 'Sesi telah selesai' : 'Menunggu sesi dibuka'}
-              </Text>
-            </View>
-            <StatusBadge status={session.status} />
           </View>
 
-          <View style={styles.lifecycle}>
-            <View style={styles.lifecycleHeading}>
-              <Text style={styles.lifecycleTitle}>SESSION LIFECYCLE</Text>
-              <Text style={styles.lifecycleIndex}>0{activeStep + 1} / 03</Text>
-            </View>
-            <View style={styles.flowTrack}>
-              {['SCHEDULED', 'LIVE', 'LOCKED'].map((step, index) => {
-                const isComplete = index <= activeStep;
-                return (
-                  <View key={step} style={styles.flowStep}>
-                    <View style={styles.flowNodeRow}>
-                      <View style={[styles.flowNode, isComplete && styles.flowNodeActive]} />
-                      {index < 2 && (
-                        <View style={[styles.flowConnector, index < activeStep && styles.flowConnectorActive]} />
-                      )}
+          <View style={styles.statusCard}>
+            <Text style={styles.sectionTitle}>Status sesi</Text>
+            <Text style={styles.statusSubtitle}>
+              {isOpen ? 'Presensi sedang tersedia' : isClosed ? 'Sesi telah selesai' : 'Menunggu sesi dibuka'}
+            </Text>
+
+            <View style={styles.lifecycle}>
+              <View style={styles.lifecycleHeading}>
+                <Text style={styles.infoLabel}>ALUR SESI</Text>
+                <Text style={styles.lifecycleIndex}>0{activeStep + 1} / 03</Text>
+              </View>
+              <View style={styles.flowTrack}>
+                {['Terjadwal', 'Dibuka', 'Ditutup'].map((step, index) => {
+                  const isComplete = index <= activeStep;
+                  return (
+                    <View key={step} style={styles.flowStep}>
+                      <View style={styles.flowNodeRow}>
+                        <View style={[styles.flowNode, isComplete && styles.flowNodeActive]} />
+                        {index < 2 && (
+                          <View style={[styles.flowConnector, index < activeStep && styles.flowConnectorActive]} />
+                        )}
+                      </View>
+                      <Text style={[styles.flowLabel, isComplete && styles.flowLabelActive]}>{step}</Text>
                     </View>
-                    <Text style={[styles.flowLabel, isComplete && styles.flowLabelActive]}>{step}</Text>
-                  </View>
-                );
-              })}
+                  );
+                })}
+              </View>
             </View>
-          </View>
 
-          <View style={styles.statusMessage}>
-            {isBelum && (
-              <Text style={styles.hint}>
-                Sesi belum dibuka. Praktikan belum bisa melakukan presensi.
-              </Text>
+            <Text style={styles.hint}>
+              {isNotStarted
+                ? 'Sesi belum dibuka. Praktikan belum bisa melakukan presensi.'
+                : isOpen
+                  ? `Sesi dibuka pukul ${session.dibukaPada ? formatJam(session.dibukaPada) : '-'}. Hadir: ${hadir} dari ${roster.length} praktikan.`
+                  : `Sesi ditutup pukul ${session.ditutupPada ? formatJam(session.ditutupPada) : '-'}. Total hadir: ${hadir} dari ${roster.length} praktikan.`}
+            </Text>
+
+            {isNotStarted && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setActionError('');
+                  setPendingAction('open');
+                }}
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+                <Text style={styles.primaryButtonText}>Buka sesi</Text>
+              </Pressable>
             )}
             {isOpen && (
-              <Text style={styles.hint}>
-                Sesi dibuka pukul {session.dibukaPada ? formatJam(session.dibukaPada) : '-'}. Praktikan dapat melakukan presensi. Hadir: {hadir} dari {roster.length} praktikan.
-              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setActionError('');
+                  setPendingAction('close');
+                }}
+                style={({ pressed }) => [styles.dangerButton, pressed && styles.pressed]}>
+                <Text style={styles.primaryButtonText}>Tutup sesi</Text>
+              </Pressable>
             )}
             {isClosed && (
-              <Text style={styles.hint}>
-                Sesi ditutup pukul {session.ditutupPada ? formatJam(session.ditutupPada) : '-'}. Presensi sudah dikunci. Total hadir: {hadir} dari {roster.length} praktikan.
-              </Text>
+              <View style={styles.closedNotice}>
+                <Text style={styles.closedNoticeText}>Sesi sudah ditutup dan tidak dapat dibuka kembali.</Text>
+              </View>
             )}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push(`/rekap/${session.id}`)}
+              style={({ pressed }) => [styles.recapButton, pressed && styles.pressed]}>
+              <Text style={styles.recapButtonText}>Lihat rekap kehadiran</Text>
+              <Text style={styles.recapArrow}>→</Text>
+            </Pressable>
+            {!!actionFeedback && <Text accessibilityLiveRegion="polite" style={styles.feedback}>{actionFeedback}</Text>}
+            {!!actionError && <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text>}
           </View>
 
-          {isBelum && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setActionFeedback('');
-                setPendingAction('open');
-              }}
-              style={({ pressed }) => [styles.btn, styles.primary, pressed && styles.pressed]}>
-              <Text style={styles.btnText}>Buka sesi</Text>
-              <Text style={styles.buttonArrow}>↗</Text>
-            </Pressable>
-          )}
-
-          {isOpen && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setActionFeedback('');
-                setPendingAction('close');
-              }}
-              style={({ pressed }) => [styles.btn, styles.danger, pressed && styles.pressed]}>
-              <Text style={[styles.btnText, styles.dangerButtonText]}>Tutup sesi</Text>
-              <Text style={[styles.buttonArrow, styles.dangerArrow]}>↗</Text>
-            </Pressable>
-          )}
-
-          {isClosed && (
-            <View style={styles.closedNotice}>
-              <Text style={styles.closedNoticeText}>Sesi sudah ditutup dan tidak dapat dibuka kembali.</Text>
-            </View>
-          )}
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push(`/rekap/${session.id}`)}
-            style={({ pressed }) => [styles.recapButton, pressed && styles.pressed]}>
-            <Text style={styles.recapButtonText}>Lihat rekap kehadiran</Text>
-            <Text style={styles.recapArrow}>→</Text>
-          </Pressable>
-
-          {!!actionFeedback && (
-            <Animated.Text
-              entering={FadeInDown.duration(300).reduceMotion(ReduceMotion.System)}
-              accessibilityLiveRegion="polite"
-              style={styles.feedback}>
-              {actionFeedback}
-            </Animated.Text>
-          )}
-        </Animated.View>
-
-        <Animated.Text
-          entering={FadeInDown.delay(240).duration(400).reduceMotion(ReduceMotion.System)}
-          style={styles.footerText}>
-          ASSIST • v1.0.0
-        </Animated.Text>
+          <Text style={styles.footerText}>ASSIST · KONTROL SESI</Text>
         </View>
-
-        <ConfirmModal
-          visible={pendingAction !== null}
-          danger={pendingAction === 'close'}
-          title={pendingAction === 'open' ? 'Buka sesi sekarang?' : 'Tutup sesi ini?'}
-          message={
-            pendingAction === 'open'
-              ? `Praktikan dapat melakukan presensi untuk praktikum setelah sesi dibuka`
-              : 'Setelah ditutup, praktikan tidak dapat melakukan presensi lagi. Sesi yang ditutup tidak dapat dibuka kembali.'
-          }
-          confirmLabel={pendingAction === 'open' ? 'Buka Sesi' : 'Tutup Sesi'}
-          onConfirm={handleConfirm}
-          onCancel={() => setPendingAction(null)}
-        />
       </ScrollView>
+
+      <Modal
+        visible={pendingAction !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingAction(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.eyebrow}>KONFIRMASI TINDAKAN</Text>
+            <Text style={styles.modalTitle}>
+              {pendingAction === 'open' ? 'Buka sesi sekarang?' : 'Tutup sesi ini?'}
+            </Text>
+            <Text style={styles.modalMessage}>
+              {pendingAction === 'open'
+                ? 'Praktikan dapat melakukan presensi setelah sesi dibuka.'
+                : 'Setelah ditutup, praktikan tidak dapat melakukan presensi lagi. Sesi tidak dapat dibuka kembali.'}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelButton} onPress={() => setPendingAction(null)}>
+                <Text style={styles.cancelButtonText}>Batal</Text>
+              </Pressable>
+              <Pressable
+                style={pendingAction === 'close' ? styles.dangerButton : styles.primaryButton}
+                onPress={handleConfirm}>
+                <Text style={styles.primaryButtonText}>{pendingAction === 'open' ? 'Buka sesi' : 'Tutup sesi'}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7F5' },
-  scrollView: { flex: 1 },
-  content: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 40 },
+  container: { flex: 1, backgroundColor: palette.navy },
+  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
   page: { width: '100%', maxWidth: 700, alignSelf: 'center' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#F5F7F5' },
-  backButton: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingVertical: 8, paddingRight: 12, marginBottom: 28 },
-  backArrow: { color: '#087F5B', fontSize: 28, lineHeight: 30, marginRight: 7 },
-  backLabel: { color: '#087F5B', fontSize: 12, fontWeight: '700', letterSpacing: 0.4 },
-  eyebrow: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, color: '#537366' },
-  pageTitle: { color: '#17382D', fontSize: 30, fontWeight: '800', letterSpacing: 0.2, marginTop: 5, marginBottom: 18 },
-  heroCard: { padding: 20, borderRadius: 20, backgroundColor: '#0F3B2E', borderWidth: 1, borderColor: '#1D604A' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: palette.navy },
+  eyebrow: { color: palette.taupe, fontFamily: 'Inter', fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  pageTitle: { color: palette.ivory, fontFamily: 'Inter', fontSize: 28, fontWeight: '700', marginTop: 6, marginBottom: 18 },
+  heroCard: { padding: 20, borderRadius: 20, backgroundColor: palette.sapphire, borderWidth: 1, borderColor: '#52658A' },
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  heroLabel: { color: '#A8DCC2', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
-  nama: { color: '#F3FAF5', fontSize: 22, lineHeight: 28, fontWeight: '700', marginTop: 18 },
-  heroCaption: { color: '#C1D8CC', fontSize: 12, lineHeight: 18, marginTop: 5 },
-  heroBottom: { flexDirection: 'row', gap: 28, marginTop: 22, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#39705A' },
+  heroLabel: { flex: 1, color: palette.ivory, fontFamily: 'Inter', fontSize: 12, fontWeight: '600' },
+  statusBadge: { backgroundColor: palette.champagne, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  statusBadgeText: { color: palette.navy, fontFamily: 'Inter', fontSize: 9, fontWeight: '700' },
+  sessionName: { color: palette.ivory, fontFamily: 'Inter', fontSize: 22, fontWeight: '700', marginTop: 18 },
+  heroCaption: { color: palette.champagne, fontFamily: 'Inter', fontSize: 12, lineHeight: 18, marginTop: 6 },
+  heroDivider: { height: 1, backgroundColor: '#7583A0', marginTop: 20, marginBottom: 15 },
+  heroBottom: { flexDirection: 'row', gap: 12 },
   heroInfo: { flex: 1 },
-  heroInfoLabel: { color: '#A8DCC2', fontSize: 8, fontWeight: '700', letterSpacing: 1.2 },
-  heroInfoValue: { color: '#F3FAF5', fontSize: 12, lineHeight: 18, fontWeight: '600', marginTop: 5 },
-  statusCard: { padding: 18, marginTop: 14, borderRadius: 20, backgroundColor: '#FFFEFC', borderWidth: 1, borderColor: '#D5E4DB' },
-  statusTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: '#E8F3EC', borderWidth: 1, borderColor: '#C8DFD1', alignItems: 'center', justifyContent: 'center' },
-  statusIconText: { color: '#087F5B', fontSize: 15, fontWeight: '700' },
-  statusHeading: { flex: 1 },
-  sectionTitle: { color: '#17382D', fontSize: 15, fontWeight: '700' },
-  statusSubtitle: { color: '#718078', fontSize: 10, marginTop: 3 },
-  lifecycle: { marginTop: 20, padding: 14, borderRadius: 14, backgroundColor: '#F2F7F3', borderWidth: 1, borderColor: '#DDE9E1' },
+  infoLabel: { color: palette.taupe, fontFamily: 'Inter', fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  infoValue: { color: palette.ivory, fontFamily: 'Inter', fontSize: 12, fontWeight: '600', marginTop: 5 },
+  statusCard: { padding: 18, marginTop: 14, borderRadius: 20, backgroundColor: palette.ivory },
+  sectionTitle: { color: palette.navy, fontFamily: 'Inter', fontSize: 17, fontWeight: '700' },
+  statusSubtitle: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 12, marginTop: 4 },
+  lifecycle: { marginTop: 18, padding: 14, borderRadius: 14, backgroundColor: '#E7E2CE', borderWidth: 1, borderColor: '#D5CFBD' },
   lifecycleHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
-  lifecycleTitle: { color: '#537366', fontSize: 8, fontWeight: '700', letterSpacing: 1.2 },
-  lifecycleIndex: { color: '#087F5B', fontSize: 8, fontWeight: '700', letterSpacing: 0.8 },
+  lifecycleIndex: { color: palette.navy, fontFamily: 'Inter', fontSize: 9, fontWeight: '700' },
   flowTrack: { flexDirection: 'row' },
   flowStep: { flex: 1 },
   flowNodeRow: { flexDirection: 'row', alignItems: 'center' },
-  flowNode: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: '#A8B9AF', backgroundColor: '#FFFFFF' },
-  flowNodeActive: { backgroundColor: '#2F9E70', borderColor: '#2F9E70' },
-  flowConnector: { height: 1, flex: 1, backgroundColor: '#D4E1D8' },
-  flowConnectorActive: { backgroundColor: '#2F9E70' },
-  flowLabel: { color: '#718078', fontSize: 8, fontWeight: '700', letterSpacing: 0.6, marginTop: 7 },
-  flowLabelActive: { color: '#087F5B' },
-  statusMessage: { paddingVertical: 17 },
-  hint: { color: '#68786F', fontSize: 12, lineHeight: 19 },
-  btn: { minHeight: 50, flexDirection: 'row', paddingVertical: 13, paddingHorizontal: 16, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  primary: { backgroundColor: '#087F5B' },
-  danger: { backgroundColor: '#A64F58', borderWidth: 1, borderColor: '#A64F58' },
-  pressed: { opacity: 0.75 },
-  btnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13, letterSpacing: 0.2 },
-  dangerButtonText: { color: '#FFFFFF' },
-  buttonArrow: { position: 'absolute', right: 16, color: '#D7F2E3', fontSize: 17, fontWeight: '700' },
-  dangerArrow: { color: '#FFFFFF' },
-  closedNotice: { padding: 13, borderRadius: 12, backgroundColor: '#FBF3F3', borderWidth: 1, borderColor: '#E9D1D3' },
-  closedNoticeText: { color: '#8E4B52', fontSize: 11, lineHeight: 17 },
-  recapButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 10 },
-  recapButtonText: { color: '#087F5B', fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
-  recapArrow: { color: '#087F5B', fontSize: 18, fontWeight: '700' },
-  feedback: { fontSize: 11, lineHeight: 17, color: '#245744', backgroundColor: '#E8F3EC', borderWidth: 1, borderColor: '#C8DFD1', padding: 12, borderRadius: 12, marginTop: 8 },
-  footerText: { color: '#87958D', textAlign: 'center', fontSize: 8, fontWeight: '700', letterSpacing: 1.2, marginTop: 26 },
+  flowNode: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: palette.sapphire, backgroundColor: palette.ivory },
+  flowNodeActive: { backgroundColor: palette.sapphire, borderColor: palette.sapphire },
+  flowConnector: { height: 1, flex: 1, backgroundColor: '#BEB7A7' },
+  flowConnectorActive: { backgroundColor: palette.sapphire },
+  flowLabel: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 9, fontWeight: '600', marginTop: 7 },
+  flowLabelActive: { color: palette.navy },
+  hint: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 12, lineHeight: 19, paddingVertical: 16 },
+  primaryButton: { minHeight: 48, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 13, backgroundColor: palette.navy },
+  dangerButton: { minHeight: 48, flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 13, backgroundColor: '#793D4D' },
+  pressed: { opacity: 0.78 },
+  primaryButtonText: { color: palette.ivory, fontFamily: 'Inter', fontSize: 13, fontWeight: '700' },
+  closedNotice: { padding: 13, borderRadius: 12, backgroundColor: '#F0E7E5', borderWidth: 1, borderColor: '#D7C2C0' },
+  closedNoticeText: { color: '#713D46', fontFamily: 'Inter', fontSize: 11, lineHeight: 17 },
+  recapButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, marginTop: 8 },
+  recapButtonText: { color: palette.navy, fontFamily: 'Inter', fontSize: 12, fontWeight: '700' },
+  recapArrow: { color: palette.navy, fontSize: 18, fontWeight: '700' },
+  feedback: { color: '#355C49', backgroundColor: '#E6EFE8', padding: 12, borderRadius: 10, fontFamily: 'Inter', fontSize: 11, lineHeight: 17 },
+  error: { color: '#713D46', backgroundColor: '#F0E7E5', padding: 12, borderRadius: 10, fontFamily: 'Inter', fontSize: 11, lineHeight: 17 },
+  footerText: { color: palette.taupe, textAlign: 'center', fontFamily: 'Inter', fontSize: 9, fontWeight: '600', letterSpacing: 1.2, marginTop: 24 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(7, 17, 40, 0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 400, backgroundColor: palette.ivory, borderRadius: 20, padding: 22, gap: 12 },
+  modalTitle: { color: palette.navy, fontFamily: 'Inter', fontSize: 20, fontWeight: '700' },
+  modalMessage: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 13, lineHeight: 19 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  cancelButton: { minHeight: 48, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: '#E7E2CE' },
+  cancelButtonText: { color: palette.navy, fontFamily: 'Inter', fontSize: 13, fontWeight: '700' },
+  bodyText: { color: palette.ivory, fontFamily: 'Inter', fontSize: 14 },
 });

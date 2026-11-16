@@ -36,6 +36,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
       {/* Sudah login: halaman ASSIST. Halaman index mengarahkan sesuai peran. */}
       <Stack.Protected guard={isLoggedIn}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="token-storage" options={{ headerShown: true, title: 'Uji Access Token' }} />
         <Stack.Screen name="identitas" />
         <Stack.Screen name="asisten" />
         <Stack.Screen name="praktikan" />
