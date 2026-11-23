@@ -52,3 +52,32 @@ export function formatDistance(meter: number): string {
   if (meter < 1000) return `${Math.round(meter)} m`;
   return `${(meter / 1000).toFixed(1).replace('.', ',')} km`;
 }
+
+// Membaca koordinat dari teks yang ditempel pengguna. Bisa berupa:
+// - pasangan angka: "-7.0482269, 110.4408514"
+// - link Google Maps panjang: "...?q=-7.04,110.44", "!3d-7.04!4d110.44" (titik pin, diutamakan),
+//   atau ".../@-7.04,110.44,19z" (titik tengah layar peta)
+// Link pendek (maps.app.goo.gl) tidak berisi angka koordinat, jadi tidak bisa dibaca.
+export function parseCoordinateText(text: string): Coordinate | null {
+  const patterns = [
+    /^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/,
+    /[?&](?:q|query|ll)=(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/,
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+    /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+  ];
+  const decoded = (() => {
+    try {
+      return decodeURIComponent(text);
+    } catch {
+      return text;
+    }
+  })();
+  for (const pattern of patterns) {
+    const match = decoded.match(pattern);
+    if (match) {
+      const coordinate = { latitude: Number(match[1]), longitude: Number(match[2]) };
+      if (isValidCoordinate(coordinate)) return coordinate;
+    }
+  }
+  return null;
+}
