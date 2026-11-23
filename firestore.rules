@@ -77,6 +77,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Laboratorium (Sprint 3): lokasi & radius acuan presensi dan peta.
+    // Dibaca semua pengguna yang login, dikelola asisten.
+    function validLab(d) {
+      return d.nama is string && d.nama.size() > 0
+        && d.gedung is string
+        && d.deskripsi is string
+        && d.latitude is number && d.latitude >= -90 && d.latitude <= 90
+        && d.longitude is number && d.longitude >= -180 && d.longitude <= 180
+        && d.radius is number && d.radius >= 10 && d.radius <= 500
+        && d.diperbaruiOleh == request.auth.uid;
+    }
+
+    match /labs/{labId} {
+      allow read: if signedIn();
+      allow create, update: if isAsisten() && validLab(request.resource.data);
+      allow delete: if isAsisten();
+    }
+
     // Kesan & pesan: ditulis praktikan, dibaca asisten.
     match /reviews/{reviewId} {
       allow read: if isAsisten()
