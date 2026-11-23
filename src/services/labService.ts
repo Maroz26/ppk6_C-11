@@ -3,13 +3,13 @@
 // Dipakai halaman peta (Programmer 2), validasi presensi (Programmer 1),
 // dan form jadwal saat asisten memilih ruang.
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    onSnapshot,
-    updateDoc,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  onSnapshot,
+  updateDoc,
 } from '@react-native-firebase/firestore';
 import { db } from '../config/firebase';
 import { COLLECTIONS, Lab, Session } from '../types';
@@ -56,8 +56,31 @@ function clean(input: LabInput) {
   };
 }
 
+// Dokumen bisa saja diisi manual lewat Firebase Console dengan tipe yang keliru
+// (misalnya angka tersimpan sebagai string). Semua field dinormalkan di sini
+// supaya layar tidak crash saat memanggil .trim() atau .toFixed().
+const asText = (value: unknown) => (value == null ? '' : String(value));
+const asNumber = (value: unknown) =>
+  typeof value === 'number' ? value : Number(String(value ?? '').trim().replace(',', '.'));
+
 function toLab(snapshot: { id: string; data: () => unknown }): Lab {
-  return { id: snapshot.id, ...(snapshot.data() as Omit<Lab, 'id'>) };
+  const d = (snapshot.data() ?? {}) as Record<string, unknown>;
+  return {
+    id: snapshot.id,
+    nama: asText(d.nama),
+    gedung: asText(d.gedung),
+    deskripsi: asText(d.deskripsi),
+    latitude: asNumber(d.latitude),
+    longitude: asNumber(d.longitude),
+    radius: asNumber(d.radius),
+    diperbaruiOleh: asText(d.diperbaruiOleh),
+    diperbaruiPada: asText(d.diperbaruiPada),
+  };
+}
+
+// true kalau koordinat dan radius lab bisa dipakai untuk peta & validasi presensi.
+export function isLabUsable(lab: Lab): boolean {
+  return isValidCoordinate(lab) && Number.isFinite(lab.radius) && lab.radius > 0;
 }
 
 // Semua laboratorium realtime, urut nama. Bisa dibaca semua pengguna yang login.
@@ -103,7 +126,7 @@ export function findLabForSession(
     const byId = labs.find((lab) => lab.id === session.labId);
     if (byId) return byId;
   }
-  const ruang = session.ruang.trim().toLowerCase();
+  const ruang = String(session.ruang ?? '').trim().toLowerCase();
   return labs.find((lab) => lab.nama.trim().toLowerCase() === ruang);
 }
 
