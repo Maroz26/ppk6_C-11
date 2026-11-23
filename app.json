@@ -19,20 +19,20 @@
       },
       "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
-      "package": "com.ppkC2.ASSIST"
+      "package": "com.ppkC2.ASSIST",
+      "permissions": ["POST_NOTIFICATIONS"]
     },
     "web": {
       "output": "server",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-    
-    [
-      "./plugins/withFirebaseBom.js",
-      {
-      "bom": "34.19.0"
-      }
-    ],
+      [
+        "./plugins/withFirebaseBom.js",
+        {
+          "bom": "34.19.0"
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",

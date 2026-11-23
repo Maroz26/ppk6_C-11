@@ -8,12 +8,16 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppProvider, useApp } from '../context/AppContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
-  const { authReady, isLoggedIn } = useApp();
+  const { authReady, isLoggedIn, currentUser } = useApp();
   const ready = fontsReady && authReady;
+
+  // Daftarkan token FCM & dengarkan notifikasi setelah login.
+  usePushNotifications(currentUser?.id, ready && isLoggedIn);
 
   // Splash screen ditutup setelah font siap dan sesi login selesai dicek.
   useEffect(() => {

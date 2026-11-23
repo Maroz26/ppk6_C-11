@@ -3,6 +3,7 @@ import { doc, onSnapshot, updateDoc } from '@react-native-firebase/firestore';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../config/firebase';
 import { logoutUser } from '../services/authService';
+import { unregisterPushToken } from '../services/notificationService';
 import {
   listenPraktikanList,
   listenSessionsForUser,
@@ -128,10 +129,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [userId, userRole]);
 
   const logout = () => {
+    const uid = currentUser?.id;
     setCurrentUser(null);
     setRole(null);
     setProfileReady(false);
-    logoutUser().catch(() => {});
+    // Hapus token perangkat dulu (butuh user masih login), baru signOut.
+    (uid ? unregisterPushToken(uid) : Promise.resolve())
+      .catch(() => {})
+      .finally(() => logoutUser().catch(() => {}));
   };
 
   const openSession = (id: string) => {
