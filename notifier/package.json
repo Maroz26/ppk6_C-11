@@ -1,0 +1,10 @@
+{
+  "name": "notifier",
+  "private": true,
+  "scripts": {
+    "start": "node listener.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}
