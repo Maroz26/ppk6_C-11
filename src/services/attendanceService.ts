@@ -1,6 +1,7 @@
 // src/services/attendanceService.ts
 // Presensi disimpan di koleksi attendances Firestore dengan id {sessionId}_{uid},
 // sehingga satu praktikan hanya bisa punya satu presensi per sesi.
+
 import {
   collection,
   doc,
@@ -11,7 +12,9 @@ import {
   where,
 } from '@react-native-firebase/firestore';
 import { db } from '../config/firebase';
-import { Attendance, AttendanceResult, COLLECTIONS, Session, User } from '../types';
+import { Attendance, AttendanceResult, COLLECTIONS, Lab, Session, User } from '../types';
+import { Coordinate, distanceMeters, isWithinRadius } from '../utils/geo';
+import { isLabUsable } from './labService';
 
 export type Praktikan = { id: string; nama: string; nim: string };
 export type Unsubscribe = () => void;
@@ -39,7 +42,20 @@ export async function submitAttendance(
   session: Session,
   user: Praktikan,
   catatan: string,
+  lab: Lab | null,
+  coords: Coordinate,
 ): Promise<AttendanceResult> {
+  // Lokasi divalidasi SEBELUM menulis ke Firestore, jadi presensi di luar
+  // radius atau tanpa lab acuan tidak pernah tercatat sebagai kehadiran berhasil.
+  if (!lab || !isLabUsable(lab)) {
+    return { ok: false, reason: 'LOKASI_TIDAK_VALID' };
+  }
+  const labCoord = { latitude: lab.latitude, longitude: lab.longitude };
+  const jarak = distanceMeters(coords, labCoord);
+  if (!isWithinRadius(coords, labCoord, lab.radius)) {
+    return { ok: false, reason: 'LUAR_RADIUS' };
+  }
+
   const id = attendanceId(session.id, user.id);
   const record: Attendance = {
     id,
@@ -49,10 +65,10 @@ export async function submitAttendance(
     nim: user.nim,
     waktu: new Date().toISOString(),
     catatan,
+    jarakMeter: Math.round(jarak),
   };
 
-  try {
-    // Status sesi dan presensi sebelumnya diperiksa di server dalam satu transaksi,
+  try {    // Status sesi dan presensi sebelumnya diperiksa di server dalam satu transaksi,
     // jadi presensi ganda tetap tertolak walaupun tombol ditekan dua kali.
     await runTransaction(db, async (transaction) => {
       const sessionSnap = await transaction.get(doc(db, COLLECTIONS.sessions, session.id));
