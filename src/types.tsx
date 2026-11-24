@@ -55,6 +55,7 @@ export type AttendanceResult =
 // reviews/{reviewId}                -> Review
 // ===== Tambahan Sprint 3 =====
 // labs/{labId}                      -> Lab (lokasi & radius acuan presensi)
+// labSchedule/{sessionId}           -> LabScheduleEntry (salinan jadwal tanpa data peserta)
 
 export const COLLECTIONS = {
   users: 'users',
@@ -63,6 +64,7 @@ export const COLLECTIONS = {
   permissions: 'permissions',
   reviews: 'reviews',
   labs: 'labs',
+  labSchedule: 'labSchedule',
 } as const;
 
 export type PermissionStatus = 'MENUNGGU' | 'DITERIMA' | 'DITOLAK';
@@ -103,4 +105,20 @@ export type Lab = {
   radius: number;
   diperbaruiOleh: string;
   diperbaruiPada: string;
+};
+
+// Salinan publik jadwal sesi untuk peta laboratorium. Bisa dibaca semua pengguna,
+// jadi sengaja TIDAK memuat enrolledStudents, materi, atau data pribadi lain.
+// Ditulis otomatis dari perangkat asisten (useLabScheduleSync), id = id sesi.
+export type LabScheduleEntry = {
+  id: string;
+  labId: string | null;
+  ruang: string;
+  praktikum: string;
+  kelas: string;
+  pertemuan: number;
+  tanggal: string;     // YYYY-MM-DD
+  jamMulai: string;    // HH:MM
+  jamSelesai: string;  // HH:MM
+  status: SessionStatus;
 };

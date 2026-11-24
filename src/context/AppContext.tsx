@@ -2,6 +2,7 @@ import { onAuthStateChanged } from '@react-native-firebase/auth';
 import { doc, onSnapshot, updateDoc } from '@react-native-firebase/firestore';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../config/firebase';
+import { useLabScheduleSync } from '../hooks/useLabScheduleSync';
 import { logoutUser } from '../services/authService';
 import {
   listenPraktikanList,
@@ -126,6 +127,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
     return listenPraktikanList(setPraktikanList, () => setPraktikanList([]));
   }, [userId, userRole]);
+
+  // Sprint 3: salinan jadwal publik untuk peta lab (koleksi labSchedule).
+  // Diperbarui otomatis dari perangkat asisten setiap kali sesi berubah.
+  useLabScheduleSync(userId, userRole === 'ASISTEN');
 
   const logout = () => {
     setCurrentUser(null);

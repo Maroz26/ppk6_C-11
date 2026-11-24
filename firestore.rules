@@ -95,6 +95,18 @@ service cloud.firestore {
       allow delete: if isAsisten();
     }
 
+    // Jadwal lab publik (Sprint 3): salinan sesi tanpa daftar peserta, untuk peta.
+    // Dibaca semua pengguna yang login, ditulis otomatis dari perangkat asisten.
+    match /labSchedule/{sessionId} {
+      allow read: if signedIn();
+      allow create, update: if isAsisten()
+        && request.resource.data.keys().hasOnly([
+             'labId', 'ruang', 'praktikum', 'kelas', 'pertemuan',
+             'tanggal', 'jamMulai', 'jamSelesai', 'status'])
+        && request.resource.data.status in ['BELUM_DIBUKA', 'DIBUKA', 'DITUTUP'];
+      allow delete: if isAsisten();
+    }
+
     // Kesan & pesan: ditulis praktikan, dibaca asisten.
     match /reviews/{reviewId} {
       allow read: if isAsisten()
