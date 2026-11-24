@@ -49,8 +49,7 @@ async function sendToUsers({ recipients, title, body, data }) {
     const res = await getMessaging().sendEachForMulticast({
       tokens: chunk.map((e) => e.token),
       notification: { title, body },
-      data, // semua value harus string
-      android: { priority: 'high' },
+      android: { priority: 'high', notification: { channelId: 'assist-high' } },
     });
     sent += res.successCount;
     await Promise.all(

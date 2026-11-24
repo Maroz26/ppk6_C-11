@@ -1,5 +1,6 @@
 // src/hooks/usePushNotifications.ts
 // Foreground (Alert), background & app mati (tap notifikasi → buka halaman terkait).
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import {
   getInitialNotification,
   getMessaging,
@@ -31,6 +32,12 @@ export function usePushNotifications(userId: string | undefined, enabled: boolea
         router.push({ pathname: '/sesi/[id]', params: { id: String(data.sessionId) } });
       }
     };
+
+    if (Platform.OS === 'android') {
+    notifee
+    .createChannel({ id: 'assist-high', name: 'Info Praktikum', importance: AndroidImportance.HIGH })
+    .catch(() => {});
+    }
 
     registerPushToken(userId).then((s) => {
       setStatus(s);
