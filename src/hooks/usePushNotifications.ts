@@ -1,14 +1,14 @@
 // src/hooks/usePushNotifications.ts
 // Foreground (Alert), background & app mati (tap notifikasi → buka halaman terkait).
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Linking, Platform } from 'react-native';
 import {
   getInitialNotification,
   getMessaging,
   onMessage,
   onNotificationOpenedApp,
 } from '@react-native-firebase/messaging';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, Linking, Platform } from 'react-native';
 import {
   PushStatus,
   listenTokenRefresh,
@@ -32,7 +32,19 @@ export function usePushNotifications(userId: string | undefined, enabled: boolea
       }
     };
 
-    registerPushToken(userId).then(setStatus);
+    registerPushToken(userId).then((s) => {
+      setStatus(s);
+      if (s === 'DENIED') {
+        Alert.alert(
+          'Notifikasi dimatikan',
+          'Kamu tidak akan menerima info sesi dibuka, perubahan jadwal, atau keputusan izin. Aktifkan di Pengaturan.',
+          [
+            { text: 'Nanti', style: 'cancel' },
+            { text: 'Buka Pengaturan', onPress: () => Linking.openSettings() },
+          ],
+        );
+      }
+    });
     const offRefresh = listenTokenRefresh(userId);
 
     // Foreground: FCM tidak menampilkan notifikasi sistem, jadi tampilkan sendiri.
