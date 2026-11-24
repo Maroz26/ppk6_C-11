@@ -22,7 +22,7 @@
       "package": "com.ppkC2.ASSIST"
     },
     "web": {
-      "output": "server",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -47,7 +47,13 @@
       "@react-native-firebase/auth",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+	"expo-location",
+  	{
+    		"locationAlwaysAndWhenInUsePermission": "ASSIST menggunakan lokasi untuk memvalidasi presensi di laboratorium."
+  	}
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

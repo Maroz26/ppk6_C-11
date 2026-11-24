@@ -31,6 +31,7 @@ export type User = {
   role: Role;
 };
 
+
 export type Attendance = {
   id: string;
   sessionId: string;
@@ -39,13 +40,21 @@ export type Attendance = {
   nim: string;
   waktu: string;
   catatan: string;
+  jarakMeter: number | null; // jarak user ke lab saat presensi; null jika lab/koordinat tidak tersedia
 };
 
 export type AttendanceResult = 
   | { ok: true; record: Attendance }
-  | { ok: false; reason: 'SESI_BELUM_DIBUKA' | 'SESI_DITUTUP' | 'SUDAH_PRESENSI' };
-
-  
+  | {
+      ok: false;
+      reason:
+        | 'SESI_BELUM_DIBUKA'
+        | 'SESI_DITUTUP'
+        | 'SUDAH_PRESENSI'
+        | 'LUAR_RADIUS'
+        | 'LOKASI_TIDAK_VALID';
+    };
+ 
 // ===== Skema Firestore (Sprint 2) =====
 // Semua id pengguna memakai uid dari Firebase Authentication.
 // users/{uid}                       -> User (tanpa field id)
