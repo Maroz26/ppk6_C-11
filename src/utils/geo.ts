@@ -81,3 +81,17 @@ export function parseCoordinateText(text: string): Coordinate | null {
   }
   return null;
 }
+
+// Poligon lingkaran (GeoJSON [lng, lat]) berjari-jari radiusMeter di sekitar center.
+// Dipakai untuk menggambar radius presensi lab di peta.
+export function circlePolygon(center: Coordinate, radiusMeter: number, steps = 48): [number, number][] {
+  const points: [number, number][] = [];
+  const latRad = toRad(center.latitude);
+  const dLat = (radiusMeter / EARTH_RADIUS_M) * (180 / Math.PI);
+  const dLng = dLat / Math.max(Math.cos(latRad), 1e-6);
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    points.push([center.longitude + dLng * Math.cos(angle), center.latitude + dLat * Math.sin(angle)]);
+  }
+  return points;
+}
