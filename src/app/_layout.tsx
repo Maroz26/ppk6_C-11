@@ -13,11 +13,12 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
-  const { authReady, isLoggedIn, currentUser } = useApp();
+  const { authReady, isLoggedIn, signingOut, currentUser } = useApp();
   const ready = fontsReady && authReady;
 
   // Daftarkan token FCM & dengarkan notifikasi setelah login.
-  usePushNotifications(currentUser?.id, ready && isLoggedIn);
+  // Dimatikan selama logout supaya token tidak terdaftar ulang.
+  usePushNotifications(currentUser?.id, ready && isLoggedIn && !signingOut);
 
   // Splash screen ditutup setelah font siap dan sesi login selesai dicek.
   useEffect(() => {

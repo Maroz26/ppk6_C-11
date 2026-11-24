@@ -9,6 +9,7 @@ import {
   onTokenRefresh,
   requestPermission,
 } from '@react-native-firebase/messaging';
+import { PermissionsAndroid, Platform } from 'react-native';
 import { db } from '../config/firebase';
 import { COLLECTIONS } from '../types';
 
@@ -19,10 +20,26 @@ export type PushStatus = 'GRANTED' | 'DENIED' | 'ERROR' | 'UNSUPPORTED';
 const isGranted = (s: number) =>
   s === AuthorizationStatus.AUTHORIZED || s === AuthorizationStatus.PROVISIONAL;
 
+// Android 13 (API 33) ke atas wajib meminta izin POST_NOTIFICATIONS secara eksplisit.
+// Android 12 ke bawah tidak punya dialog izin: notifikasi aktif secara bawaan.
+async function requestAndroidNotificationPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android' || Number(Platform.Version) < 33) return true;
+  const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+  if (await PermissionsAndroid.check(permission)) return true;
+  const result = await PermissionsAndroid.request(permission, {
+    title: 'Izinkan notifikasi',
+    message: 'ASSIST mengirim pemberitahuan saat sesi dibuka, jadwal berubah, atau izin diputuskan.',
+    buttonPositive: 'Izinkan',
+    buttonNegative: 'Nanti',
+  });
+  return result === PermissionsAndroid.RESULTS.GRANTED;
+}
+
 // Minta izin lalu daftarkan token perangkat ke profil pengguna.
 export async function registerPushToken(uid: string): Promise<PushStatus> {
   try {
-    const status = await requestPermission(messaging); // Android 13+ memunculkan dialog sistem
+    if (!(await requestAndroidNotificationPermission())) return 'DENIED';
+    const status = await requestPermission(messaging); // iOS memunculkan dialog di sini
     if (!isGranted(status)) return 'DENIED';
 
     const token = await getToken(messaging);
