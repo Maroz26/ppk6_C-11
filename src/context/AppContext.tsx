@@ -1,8 +1,10 @@
 import { onAuthStateChanged } from '@react-native-firebase/auth';
 import { doc, onSnapshot, updateDoc } from '@react-native-firebase/firestore';
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { auth, db } from '../config/firebase';
+import { useLabScheduleSync } from '../hooks/useLabScheduleSync';
 import { logoutUser } from '../services/authService';
+import { unregisterPushToken } from '../services/notificationService';
 import {
   listenPraktikanList,
   listenSessionsForUser,
@@ -18,6 +20,7 @@ type AppContextType = {
   role: Role | null;
   authReady: boolean;
   isLoggedIn: boolean;
+  signingOut: boolean;
   profileReady: boolean;
   praktikanList: User[];
   asistenList: User[];
@@ -45,6 +48,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [profileReady, setProfileReady] = useState(false);
   const [praktikanList, setPraktikanList] = useState<User[]>([]);
 
+  // Selama proses logout, profil tidak boleh "hidup lagi" dari snapshot Firestore.
+  // Tanpa ini, penghapusan token memicu snapshot profil, currentUser terisi lagi,
+  // lalu token baru didaftarkan ulang sehingga fcmTokens terus bertambah.
+  const signingOutRef = useRef(false);
+  const [signingOut, setSigningOut] = useState(false);
+
   // Halaman pilih identitas sudah tidak dipakai, jadi daftar asisten dikosongkan.
   const asistenList: User[] = [];
 
@@ -70,6 +79,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       unsubscribeProfile = onSnapshot(
         doc(db, COLLECTIONS.users, firebaseUser.uid),
         (snapshot) => {
+          if (signingOutRef.current) return;
           if (snapshot.exists()) {
             const data = snapshot.data() as Omit<User, 'id'>;
             setCurrentUser({ id: snapshot.id, ...data });
@@ -127,11 +137,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return listenPraktikanList(setPraktikanList, () => setPraktikanList([]));
   }, [userId, userRole]);
 
+  // Sprint 3: salinan jadwal publik untuk peta lab (koleksi labSchedule).
+  // Diperbarui otomatis dari perangkat asisten setiap kali sesi berubah.
+  useLabScheduleSync(userId, userRole === 'ASISTEN');
+
   const logout = () => {
+    if (signingOutRef.current) return;
+    const uid = currentUser?.id;
+    signingOutRef.current = true;
+    setSigningOut(true);
     setCurrentUser(null);
     setRole(null);
     setProfileReady(false);
-    logoutUser().catch(() => {});
+    // Hapus token perangkat dulu (butuh user masih login), baru signOut.
+    (uid ? unregisterPushToken(uid) : Promise.resolve())
+      .catch(() => {})
+      .finally(() =>
+        logoutUser()
+          .catch(() => {})
+          .finally(() => {
+            signingOutRef.current = false;
+            setSigningOut(false);
+          }),
+      );
   };
 
   const openSession = (id: string) => {
@@ -188,7 +216,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      sessions, sessionsError, attendances, currentUser, role, authReady, isLoggedIn, profileReady,
+      sessions, sessionsError, attendances, currentUser, role, authReady, isLoggedIn, signingOut, profileReady,
       praktikanList, asistenList,
       setRole, setCurrentUser, logout, openSession, closeSession, markAttendance,
       hasAttended, getAttendanceBySession, getAttendanceByPraktikan

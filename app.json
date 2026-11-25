@@ -19,20 +19,20 @@
       },
       "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
-      "package": "com.ppkC2.ASSIST"
+      "package": "com.ppkC2.ASSIST",
+      "permissions": ["POST_NOTIFICATIONS"]
     },
     "web": {
       "output": "server",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-    
-    [
-      "./plugins/withFirebaseBom.js",
-      {
-      "bom": "34.19.0"
-      }
-    ],
+      [
+        "./plugins/withFirebaseBom.js",
+        {
+          "bom": "34.19.0"
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -47,7 +47,18 @@
       "@react-native-firebase/auth",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "ASSIST memakai lokasimu untuk memeriksa kehadiran di laboratorium dan menampilkan posisimu di peta.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

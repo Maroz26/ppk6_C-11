@@ -47,3 +47,5 @@ example
 AGENTS.cls 
 git 
 grep 
+
+notifier/serviceAccountKey.json

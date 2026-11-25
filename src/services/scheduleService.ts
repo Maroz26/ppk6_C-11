@@ -1,12 +1,12 @@
 import {
-    addDoc,
-    collection,
-    deleteDoc,
-    doc,
-    onSnapshot,
-    query,
-    updateDoc,
-    where,
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  updateDoc,
+  where,
 } from '@react-native-firebase/firestore';
 import { db } from '../config/firebase';
 import { COLLECTIONS, Session, User } from '../types';
@@ -24,6 +24,7 @@ export type SessionInput = {
   pertemuan: number;
   materi: string;
   enrolledStudents: string[]; // uid praktikan
+  labId: string | null;        // dokumen di koleksi labs (acuan lokasi presensi)
 };
 
 const TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,6 +42,7 @@ export function validateSession(input: SessionInput): string | null {
   }
   if (input.jamSelesai <= input.jamMulai) return 'Jam selesai harus setelah jam mulai.';
   if (!input.ruang.trim()) return 'Ruang wajib diisi.';
+  if (!input.labId) return 'Pilih ruang dari daftar laboratorium agar lokasi presensi dapat diperiksa.';
   if (!Number.isInteger(input.pertemuan) || input.pertemuan < 1) {
     return 'Pertemuan harus berupa angka mulai dari 1.';
   }
@@ -60,6 +62,7 @@ function clean(input: SessionInput): SessionInput {
     pertemuan: input.pertemuan,
     materi: input.materi.trim(),
     enrolledStudents: input.enrolledStudents,
+    labId: input.labId,
   };
 }
 

@@ -2,33 +2,35 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
+import { useLabs } from '../hooks/useLabs';
+import { findLabForSession } from '../services/labService';
 import {
-    createSession,
-    listenPraktikanList,
-    scheduleErrorMessage,
-    SessionInput,
-    updateSession,
-    validateSession,
+  createSession,
+  listenPraktikanList,
+  scheduleErrorMessage,
+  SessionInput,
+  updateSession,
+  validateSession,
 } from '../services/scheduleService';
 import { palette } from '../theme';
-import { User } from '../types';
+import { Lab, User } from '../types';
 import { formatTanggal } from '../utils/formatTime';
 
-// Ubah daftar ini sesuai praktikum dan ruang di kampusmu.
+// Ubah daftar ini sesuai praktikum di kampusmu.
+// Daftar ruang diambil dari koleksi labs (dikelola di halaman Kelola laboratorium).
 const PRAKTIKUM_OPTIONS = ['Pemrograman Web', 'Basis Data'];
-const RUANG_OPTIONS = ['Lab Komputer 1', 'Lab Komputer 2'];
 const KELAS_OPTIONS = ['A', 'B', 'C', 'D'];
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -151,6 +153,64 @@ function OptionSheet({ visible, title, options, value, onSelect, onClose }: {
           <Text style={styles.smallButtonText}>Pakai</Text>
         </Pressable>
       </View>
+    </Sheet>
+  );
+}
+
+// Pilihan ruang dari koleksi labs. Tidak ada isian bebas supaya setiap sesi
+// punya titik koordinat dan radius untuk validasi presensi.
+function LabSheet({ visible, labs, loading, error, value, onSelect, onClose }: {
+  visible: boolean;
+  labs: Lab[];
+  loading: boolean;
+  error: string;
+  value: string | null;
+  onSelect: (lab: Lab) => void;
+  onClose: () => void;
+}) {
+  function openLabManager() {
+    onClose();
+    router.push('/asisten/lab');
+  }
+
+  return (
+    <Sheet visible={visible} title="Pilih ruang" onClose={onClose}>
+      {loading ? (
+        <Text style={styles.helper}>Memuat daftar laboratorium...</Text>
+      ) : error ? (
+        <Text style={styles.error} accessibilityRole="alert">{error}</Text>
+      ) : labs.length === 0 ? (
+        <Text style={styles.helper}>
+          Belum ada laboratorium. Tambahkan lokasi laboratorium terlebih dahulu.
+        </Text>
+      ) : (
+        <ScrollView style={styles.sheetList} keyboardShouldPersistTaps="handled">
+          {labs.map((lab) => (
+            <Pressable
+              key={lab.id}
+              accessibilityRole="button"
+              onPress={() => {
+                onSelect(lab);
+                onClose();
+              }}
+              style={({ pressed }) => [styles.sheetOption, pressed && styles.pressed]}
+            >
+              <View style={styles.flex}>
+                <Text style={styles.optionName}>{lab.nama}</Text>
+                <Text style={styles.optionNim}>{lab.gedung} · radius {lab.radius} m</Text>
+              </View>
+              {lab.id === value && <Ionicons name="checkmark" size={18} color={palette.navy} />}
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        onPress={openLabManager}
+        style={({ pressed }) => [styles.sheetConfirm, pressed && styles.pressed]}
+      >
+        <Text style={styles.sheetConfirmText}>Kelola laboratorium</Text>
+      </Pressable>
     </Sheet>
   );
 }
@@ -310,6 +370,8 @@ export default function SessionFormScreen() {
   const [jamMulai, setJamMulai] = useState('');
   const [jamSelesai, setJamSelesai] = useState('');
   const [ruang, setRuang] = useState('');
+  const [labId, setLabId] = useState<string | null>(null);
+  const { labs, loading: labsLoading, error: labsError } = useLabs();
   const [pertemuan, setPertemuan] = useState(1);
   const [materi, setMateri] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -332,10 +394,25 @@ export default function SessionFormScreen() {
     setJamMulai(editing.jamMulai);
     setJamSelesai(editing.jamSelesai);
     setRuang(editing.ruang);
+    setLabId(editing.labId ?? null);
     setPertemuan(editing.pertemuan);
     setMateri(editing.materi);
     setSelected(editing.enrolledStudents ?? []);
   }, [editing]);
+
+  // Sesi lama (sprint 2) belum punya labId: cocokkan otomatis lewat nama ruang.
+  useEffect(() => {
+    if (labId || !ruang) return;
+    const match = findLabForSession({ labId: null, ruang }, labs);
+    if (match) setLabId(match.id);
+  }, [labs, labId, ruang]);
+
+  const selectedLab = labId ? labs.find((lab) => lab.id === labId) : undefined;
+
+  function chooseLab(lab: Lab) {
+    setLabId(lab.id);
+    setRuang(lab.nama);
+  }
 
   // Daftar praktikan realtime dari koleksi users.
   useEffect(() => {
@@ -363,6 +440,7 @@ export default function SessionFormScreen() {
       pertemuan,
       materi,
       enrolledStudents: selected,
+      labId: selectedLab ? selectedLab.id : null,
     };
     const invalid = validateSession(input);
     if (invalid) {
@@ -503,13 +581,24 @@ export default function SessionFormScreen() {
                   </View>
                 </View>
 
-                <SelectField
-                  label="Ruang"
-                  value={ruang}
-                  placeholder="Pilih ruang"
-                  icon="chevron-down"
-                  onPress={() => setPicker('ruang')}
-                />
+                <View>
+                  <SelectField
+                    label="Ruang"
+                    value={selectedLab ? selectedLab.nama : ruang}
+                    placeholder="Pilih laboratorium"
+                    icon="chevron-down"
+                    onPress={() => setPicker('ruang')}
+                  />
+                  {selectedLab ? (
+                    <Text style={[styles.helper, styles.labHint]}>
+                      {selectedLab.gedung} · radius presensi {selectedLab.radius} m
+                    </Text>
+                  ) : !!ruang && !labsLoading ? (
+                    <Text style={[styles.error, styles.labHint]}>
+                      Ruang "{ruang}" belum terdaftar sebagai laboratorium. Pilih ulang dari daftar.
+                    </Text>
+                  ) : null}
+                </View>
 
                 <View>
                   <Text style={styles.fieldLabel}>Materi</Text>
@@ -599,12 +688,13 @@ export default function SessionFormScreen() {
         onSelect={setPraktikum}
         onClose={() => setPicker(null)}
       />
-      <OptionSheet
+      <LabSheet
         visible={picker === 'ruang'}
-        title="Pilih ruang"
-        options={RUANG_OPTIONS}
-        value={ruang}
-        onSelect={setRuang}
+        labs={labs}
+        loading={labsLoading}
+        error={labsError}
+        value={selectedLab ? selectedLab.id : null}
+        onSelect={chooseLab}
         onClose={() => setPicker(null)}
       />
       <CalendarSheet
@@ -632,6 +722,7 @@ export default function SessionFormScreen() {
 }
 
 const styles = StyleSheet.create({
+  labHint: { marginTop: 6 },
   container: { flex: 1, backgroundColor: palette.navy },
   flex: { flex: 1 },
   content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },

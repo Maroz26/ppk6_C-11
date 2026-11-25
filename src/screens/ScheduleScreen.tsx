@@ -66,6 +66,16 @@ export default function ScheduleScreen() {
           <Text style={styles.addButtonText}>Tambah sesi</Text>
         </Pressable>
       )}
+      {isAsisten && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/asisten/lab')}
+          style={({ pressed }) => [styles.labButton, pressed && styles.pressed]}
+        >
+          <Ionicons name="business-outline" size={18} color={palette.ivory} />
+          <Text style={styles.labButtonText}>Kelola laboratorium</Text>
+        </Pressable>
+      )}
     </View>
   );
 
@@ -198,6 +208,11 @@ const styles = StyleSheet.create({
     backgroundColor: palette.champagne, borderRadius: 13, marginBottom: 18,
   },
   addButtonText: { color: palette.navy, fontSize: 13, fontWeight: '700' },
+  labButton: {
+    minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 13, borderWidth: 1, borderColor: palette.taupe, marginTop: -8, marginBottom: 18,
+  },
+  labButtonText: { color: palette.ivory, fontSize: 13, fontWeight: '700' },
   pressed: { opacity: 0.75 },
   card: { padding: 16, backgroundColor: palette.ivory, borderRadius: 18, marginBottom: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },

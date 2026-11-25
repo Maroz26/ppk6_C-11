@@ -8,12 +8,17 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppProvider, useApp } from '../context/AppContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
-  const { authReady, isLoggedIn } = useApp();
+  const { authReady, isLoggedIn, signingOut, currentUser } = useApp();
   const ready = fontsReady && authReady;
+
+  // Daftarkan token FCM & dengarkan notifikasi setelah login.
+  // Dimatikan selama logout supaya token tidak terdaftar ulang.
+  usePushNotifications(currentUser?.id, ready && isLoggedIn && !signingOut);
 
   // Splash screen ditutup setelah font siap dan sesi login selesai dicek.
   useEffect(() => {
@@ -41,6 +46,8 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="asisten" />
         <Stack.Screen name="praktikan" />
         <Stack.Screen name="sesi/form" />
+        <Stack.Screen name="lab/form" />
+        <Stack.Screen name="peta" />
         <Stack.Screen name="sesi/[id]" options={{ headerShown: true, title: 'Detail Sesi' }} />
         <Stack.Screen name="kelola/[id]" options={{ headerShown: true, title: 'Kelola Sesi' }} />
         <Stack.Screen name="rekap/[id]" options={{ headerShown: true, title: 'Rekap Kehadiran' }} />
