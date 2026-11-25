@@ -1,4 +1,4 @@
-import { AttendanceAction } from '@/components/AttendanceAction';
+
 import { EmptyState } from '@/components/EmptyState';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useApp } from '@/context/AppContext';
@@ -100,25 +100,13 @@ export default function SessionDetailScreen() {
             </Pressable>
           </>
         ) : (
-          <>
-            {session.status === 'BELUM_DIBUKA' && (
-              <View style={[styles.notice, { backgroundColor: colors.statusSoft.BELUM_DIBUKA.bg }]}>
-                <Ionicons name="time-outline" size={20} color={colors.statusSoft.BELUM_DIBUKA.text} />
-                <Text style={[styles.noticeText, { color: colors.statusSoft.BELUM_DIBUKA.text }]}>
-                  Sesi belum dibuka.
-                </Text>
-              </View>
-            )}
-            {session.status === 'DITUTUP' && (
-              <View style={[styles.notice, { backgroundColor: colors.statusSoft.DITUTUP.bg }]}>
-                <Ionicons name="lock-closed-outline" size={20} color={colors.statusSoft.DITUTUP.text} />
-                <Text style={[styles.noticeText, { color: colors.statusSoft.DITUTUP.text }]}>
-                  Sesi sudah ditutup.
-                </Text>
-              </View>
-            )}
-            <AttendanceAction session={session} />
-          </>
+          <Pressable
+            style={({ pressed }) => [styles.btnPrimary, pressed && styles.btnPrimaryPressed]}
+            onPress={() => router.push(`/presensi/${session.id}`)}
+          >
+            <Ionicons name="finger-print-outline" size={20} color={colors.textOnPrimary} />
+            <Text style={styles.btnText}>Buka Presensi</Text>
+          </Pressable>
         )}
       </View>
     </ScrollView>
