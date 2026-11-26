@@ -80,8 +80,7 @@ const styles = StyleSheet.create({
   hill: { position: 'absolute', backgroundColor: color.lime, borderWidth: 2, borderColor: color.limeDark },
   grass: { position: 'absolute', flexDirection: 'row', alignItems: 'flex-end', gap: 5 },
   blade: { width: 4, borderRadius: 2, backgroundColor: color.grass },
-  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 36, paddingVertical: 32 },
-  logo: { width: 84, height: 88, alignSelf: 'center', marginBottom: 18 },
+  content: { flexGrow: 1, justifyContent: 'flex-start', paddingHorizontal: 36, paddingTop: 90, paddingBottom: 32 },  logo: { width: 84, height: 88, alignSelf: 'center', marginBottom: 18 },
   card: {
     backgroundColor: color.card,
     borderRadius: radius.card,
