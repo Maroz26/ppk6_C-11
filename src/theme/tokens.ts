@@ -52,7 +52,9 @@ export const color = {
   daySelected: '#684A79',   // sama dengan plum
 
   // Aksen dari ilustrasi maskot
-  lime: '#D4EC8C',
+  lime: '#D6EA94',          // bukit di halaman Login & Sign Up
+  limeDark: '#B5CB73',      // garis tepi bukit
+  grass: 'rgba(96,112,52,0.35)', // rumput di bukit
   mint: '#CDF2E8',          // Figma #CAFFF2, saturasi diturunkan agar di layar HP tidak terlalu menyala. Tema asisten: kartu sorotan, kotak menu, tombol kartu
 } as const;
 

@@ -1,112 +1,114 @@
+// src/screens/LoginScreen.tsx
+// Login (redesign, Figma: "logo-screen"). Logika login sama seperti sebelumnya:
+// kalau berhasil, _layout.tsx memindahkan pengguna ke beranda sesuai peran.
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import { AuthInput } from '../components/ui/AuthInput';
+import { AuthLayout } from '../components/ui/AuthLayout';
 import { authErrorMessage, loginUser, validateLogin } from '../services/authService';
-import { colors, styles } from '../theme';
+import { color, font, radius } from '../theme/tokens';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const [error, setError] = useState('');
 
   async function login() {
     const invalid = validateLogin(email, password);
     if (invalid) {
-      setLoginError(invalid);
+      setError(invalid);
       return;
     }
-
     setBusy(true);
-    setLoginError('');
+    setError('');
     try {
-      // Kalau berhasil, _layout.tsx yang memindahkan ke halaman sesuai peran.
       await loginUser(email, password);
-    } catch (error) {
-      setLoginError(authErrorMessage(error));
+    } catch (e) {
+      setError(authErrorMessage(e));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={styles.background} pointerEvents="none">
-        <View style={styles.peach} />
-        <View style={styles.teal} />
-      </View>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.shadow}>
-          <View style={styles.card}>
-            <Text style={[styles.title, localStyles.center]}>Login</Text>
+    <AuthLayout title="Login">
+      <AuthInput
+        icon="mail"
+        label="Email"
+        placeholder="Email"
+        value={email}
+        onChangeText={(v) => {
+          setEmail(v);
+          setError('');
+        }}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+      />
+      <AuthInput
+        icon="lock"
+        label="Password"
+        placeholder="Password"
+        secure
+        value={password}
+        onChangeText={(v) => {
+          setPassword(v);
+          setError('');
+        }}
+        autoCapitalize="none"
+        autoComplete="password"
+        textContentType="password"
+        returnKeyType="done"
+        onSubmitEditing={login}
+      />
 
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              accessibilityLabel="Email"
-              placeholder="Email"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.teal}
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+      {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              accessibilityLabel="Password"
-              placeholder="Password"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.teal}
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
+        onPress={login}
+        style={({ pressed }) => [styles.button, (pressed || busy) && styles.pressed]}
+      >
+        <Text style={styles.buttonText}>{busy ? 'Memproses...' : 'Masuk'}</Text>
+      </Pressable>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: busy }}
-              style={({ pressed }) => [styles.button, { opacity: busy ? 0.5 : pressed ? 0.8 : 1 }]}
-              onPress={login}
-              disabled={busy}
-            >
-              <Text style={styles.buttonLabel}>{busy ? 'Memproses...' : 'Login'}</Text>
-            </Pressable>
-
-            <Pressable accessibilityRole="link" onPress={() => router.push('/register')} style={localStyles.linkWrap}>
-              <Text style={styles.muted}>
-                Belum punya akun? <Text style={localStyles.link}>Daftar</Text>
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Modal muncul saat input tidak valid atau Firebase menolak login. */}
-      <Modal transparent animationType="fade" visible={!!loginError} onRequestClose={() => setLoginError('')}>
-        <View style={styles.screen}>
-          <ScrollView contentContainerStyle={styles.content}>
-            <View style={styles.shadow}>
-              <View style={styles.card}>
-                <Text style={styles.subtitle}>Login tidak berhasil</Text>
-                <Text style={styles.error} accessibilityRole="alert">{loginError}</Text>
-                <Pressable accessibilityRole="button" onPress={() => setLoginError('')} style={({ pressed }) => [styles.button, { opacity: pressed ? 0.8 : 1 }]}>
-                  <Text style={styles.buttonLabel}>Tutup</Text>
-                </Pressable>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-    </KeyboardAvoidingView>
+      <Pressable accessibilityRole="link" onPress={() => router.push('/register')} hitSlop={8} style={styles.linkWrap}>
+        <Text style={styles.linkText}>
+          Belum punya akun? <Text style={styles.link}>Sign Up</Text>
+        </Text>
+      </Pressable>
+    </AuthLayout>
   );
 }
 
-const localStyles = StyleSheet.create({
-  center: { textAlign: 'center' },
-  linkWrap: { alignItems: 'center', padding: 4 },
-  link: { color: colors.teal, fontWeight: '700' },
+const styles = StyleSheet.create({
+  pressed: { opacity: 0.75 },
+  error: {
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 19,
+    color: color.danger,
+    backgroundColor: color.dangerSoft,
+    borderRadius: radius.sm,
+    padding: 12,
+  },
+  button: {
+    minHeight: 54,
+    marginTop: 10,
+    borderRadius: radius.pill,
+    backgroundColor: color.plum,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: { fontFamily: font.display, fontSize: 20, color: color.onDark },
+  linkWrap: { alignSelf: 'center', paddingVertical: 6 },
+  linkText: { fontFamily: font.regular, fontSize: 14, color: color.inkSoft },
+  link: { fontFamily: font.semibold, color: color.purpleDeep, textDecorationLine: 'underline' },
 });

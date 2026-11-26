@@ -1,8 +1,14 @@
+// src/screens/RegisterScreen.tsx
+// Sign Up (redesign, Figma: "logo-screen"). Logika daftar sama seperti sebelumnya:
+// akun dibuat di Firebase Authentication, profil disimpan ke users/{uid},
+// lalu _layout.tsx memindahkan pengguna ke beranda sesuai peran.
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AuthInput } from '../components/ui/AuthInput';
+import { AuthLayout } from '../components/ui/AuthLayout';
 import { authErrorMessage, registerUser, validateRegister } from '../services/authService';
-import { colors, styles } from '../theme';
+import { color, font, radius } from '../theme/tokens';
 import { Role } from '../types';
 
 const ROLES: { value: Role; label: string }[] = [
@@ -17,24 +23,21 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
   async function register() {
     const input = { nama, nim, email, password, role };
     const invalid = validateRegister(input);
     if (invalid) {
-      setMessage(invalid);
+      setError(invalid);
       return;
     }
-
     setBusy(true);
-    setMessage('');
+    setError('');
     try {
-      // Setelah akun dibuat, pengguna otomatis login dan _layout.tsx
-      // memindahkannya ke halaman sesuai peran.
       await registerUser(input);
-    } catch (error) {
-      setMessage(authErrorMessage(error));
+    } catch (e) {
+      setError(authErrorMessage(e));
     } finally {
       setBusy(false);
     }
@@ -45,117 +48,110 @@ export default function RegisterScreen() {
     else router.replace('/login');
   }
 
+  const clear = <T,>(setter: (v: T) => void) => (v: T) => {
+    setter(v);
+    setError('');
+  };
+
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={styles.background} pointerEvents="none">
-        <View style={styles.peach} />
-        <View style={styles.teal} />
-      </View>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.shadow}>
-          <View style={styles.card}>
-            <Text style={[styles.title, localStyles.center]}>Daftar Akun</Text>
-
-            <Text style={styles.label}>Nama lengkap</Text>
-            <TextInput
-              accessibilityLabel="Nama lengkap"
-              placeholder="Nama lengkap"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.teal}
-              style={styles.input}
-              value={nama}
-              onChangeText={setNama}
-            />
-
-            <Text style={styles.label}>NIM</Text>
-            <TextInput
-              accessibilityLabel="NIM"
-              placeholder="NIM"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.teal}
-              style={styles.input}
-              value={nim}
-              onChangeText={setNim}
-              keyboardType="number-pad"
-            />
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              accessibilityLabel="Email"
-              placeholder="Email"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.teal}
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              accessibilityLabel="Password"
-              placeholder="Minimal 6 karakter"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.teal}
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-
-            <Text style={styles.label}>Peran</Text>
-            <View style={localStyles.roleRow}>
-              {ROLES.map((item) => {
-                const selected = role === item.value;
-                return (
-                  <Pressable
-                    key={item.value}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    onPress={() => setRole(item.value)}
-                    style={[localStyles.roleOption, selected && localStyles.roleSelected]}
-                  >
-                    <Text style={[styles.label, selected && localStyles.roleSelectedLabel]}>{item.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            {!!message && <Text style={styles.error} accessibilityRole="alert">{message}</Text>}
-
+    <AuthLayout title="Sign Up">
+      <View style={styles.roles} accessibilityRole="radiogroup" accessibilityLabel="Daftar sebagai">
+        {ROLES.map((item) => {
+          const active = role === item.value;
+          return (
             <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ disabled: busy }}
-              style={({ pressed }) => [styles.button, { opacity: busy ? 0.5 : pressed ? 0.8 : 1 }]}
-              onPress={register}
-              disabled={busy}
+              key={item.value}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: active }}
+              onPress={() => clear(setRole)(item.value)}
+              style={({ pressed }) => [styles.role, active && styles.roleActive, pressed && styles.pressed]}
             >
-              <Text style={styles.buttonLabel}>{busy ? 'Memproses...' : 'Daftar'}</Text>
+              <Text style={[styles.roleText, active && styles.roleTextActive]}>{item.label}</Text>
             </Pressable>
+          );
+        })}
+      </View>
 
-            <Pressable accessibilityRole="link" onPress={goToLogin} style={localStyles.linkWrap}>
-              <Text style={styles.muted}>
-                Sudah punya akun? <Text style={localStyles.link}>Login</Text>
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <AuthInput icon="user" label="Nama lengkap" placeholder="Nama lengkap" value={nama} onChangeText={clear(setNama)} autoComplete="name" />
+      <AuthInput icon="hash" label="NIM" placeholder="NIM" value={nim} onChangeText={clear(setNim)} keyboardType="number-pad" />
+      <AuthInput
+        icon="mail"
+        label="Email"
+        placeholder="Email"
+        value={email}
+        onChangeText={clear(setEmail)}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="email"
+      />
+      <AuthInput
+        icon="lock"
+        label="Password, minimal 6 karakter"
+        placeholder="Password (min. 6 karakter)"
+        secure
+        value={password}
+        onChangeText={clear(setPassword)}
+        autoCapitalize="none"
+        autoComplete="password-new"
+        returnKeyType="done"
+        onSubmitEditing={register}
+      />
+
+      {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: busy }}
+        disabled={busy}
+        onPress={register}
+        style={({ pressed }) => [styles.button, (pressed || busy) && styles.pressed]}
+      >
+        <Text style={styles.buttonText}>{busy ? 'Mendaftarkan...' : 'Daftar'}</Text>
+      </Pressable>
+
+      <Pressable accessibilityRole="link" onPress={goToLogin} hitSlop={8} style={styles.linkWrap}>
+        <Text style={styles.linkText}>
+          Sudah punya akun? <Text style={styles.link}>Login</Text>
+        </Text>
+      </Pressable>
+    </AuthLayout>
   );
 }
 
-const localStyles = StyleSheet.create({
-  center: { textAlign: 'center' },
-  roleRow: { flexDirection: 'row', gap: 12 },
-  roleOption: {
-    flex: 1, minHeight: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(23,50,77,0.16)', backgroundColor: 'rgba(255,255,255,0.75)',
+const styles = StyleSheet.create({
+  pressed: { opacity: 0.75 },
+  roles: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: color.orange,
+    backgroundColor: color.surface,
   },
-  roleSelected: { backgroundColor: colors.navy, borderColor: colors.navy },
-  roleSelectedLabel: { color: colors.white },
-  linkWrap: { alignItems: 'center', padding: 4 },
-  link: { color: colors.teal, fontWeight: '700' },
+  role: { flex: 1, minHeight: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  roleActive: { backgroundColor: color.plum },
+  roleText: { fontFamily: font.semibold, fontSize: 14, color: color.purpleInk },
+  roleTextActive: { color: color.onDark },
+  error: {
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 19,
+    color: color.danger,
+    backgroundColor: color.dangerSoft,
+    borderRadius: radius.sm,
+    padding: 12,
+  },
+  button: {
+    minHeight: 54,
+    marginTop: 10,
+    borderRadius: radius.pill,
+    backgroundColor: color.plum,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: { fontFamily: font.display, fontSize: 20, color: color.onDark },
+  linkWrap: { alignSelf: 'center', paddingVertical: 6 },
+  linkText: { fontFamily: font.regular, fontSize: 14, color: color.inkSoft },
+  link: { fontFamily: font.semibold, color: color.purpleDeep, textDecorationLine: 'underline' },
 });
