@@ -195,7 +195,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       nama: currentUser.nama,
       nim: currentUser.nim,
       waktu: new Date().toISOString(),
-      catatan
+      catatan,
+      jarakMeter: null,
     };
 
     setAttendances((prev: Attendance[]) => [...prev, record]);

@@ -1,6 +1,9 @@
+import { LilitaOne_400Regular } from '@expo-google-fonts/lilita-one';
 import {
   Poppins_400Regular,
+  Poppins_500Medium,
   Poppins_600SemiBold,
+  Poppins_600SemiBold_Italic,
   Poppins_700Bold,
   useFonts
 } from '@expo-google-fonts/poppins';
@@ -58,9 +61,13 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
 }
 
 export default function RootLayout() {
+  // Font sistem desain baru (lihat src/theme/tokens.ts).
   const [loaded, error] = useFonts({
+    LilitaOne_400Regular,
     Poppins_400Regular,
+    Poppins_500Medium,
     Poppins_600SemiBold,
+    Poppins_600SemiBold_Italic,
     Poppins_700Bold,
   });
 
