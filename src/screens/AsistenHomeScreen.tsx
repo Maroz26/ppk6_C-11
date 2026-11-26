@@ -66,19 +66,18 @@ export default function AsistenHomeScreen() {
     }
   }
 
-  // Sementara: Kelola Sesi & Rekap masih memakai halaman lama sampai halaman barunya dibuat.
   const menu: MenuItem[] = [
     { key: 'kelola', label: 'Kelola Sesi', feather: 'edit-3', onPress: () => router.push('/asisten/kelola-sesi') },
     { key: 'jadwal', label: 'Jadwal', icon: 'jadwal', onPress: () => router.push('/asisten/jadwal') },
     { key: 'izin', label: 'Perizinan', icon: 'perizinan', onPress: () => router.push('/asisten/izin') },
-    { key: 'rekap', label: 'Rekap Hadir', icon: 'rekap', onPress: () => router.push('/asisten/kelola-sesi') },
+    { key: 'rekap', label: 'Rekap Hadir', icon: 'rekap', onPress: () => router.push('/asisten/rekap') },
     { key: 'ulasan', label: 'Ulasan', icon: 'ulasan', onPress: () => router.push('/ulasan') },
     { key: 'lab', label: 'Kelola Lab', icon: 'peta', onPress: () => router.push('/asisten/lab') },
   ];
 
   // Isi kartu mint.
   const hero = openToday
-    ? { summary: 'Presensi sedang dibuka: ', highlight: openToday.praktikum, action: 'Lihat kehadiran', onAction: () => router.push(`/rekap/${openToday.id}`) }
+    ? { summary: 'Presensi sedang dibuka: ', highlight: openToday.praktikum, action: 'Lihat kehadiran', onAction: () => router.push(`/sesi/${openToday.id}`) }
     : nextToday
       ? { summary: 'Hari ini, kamu mengajar ', highlight: nextToday.praktikum, action: 'Buka presensi', onAction: () => askStatus(nextToday, 'DIBUKA') }
       : { summary: 'Hari ini tidak ada jadwal mengajar.', highlight: undefined, action: 'Lihat jadwal', onAction: () => router.push('/asisten/jadwal') };
@@ -91,7 +90,7 @@ export default function AsistenHomeScreen() {
   function primaryAction(session: Session) {
     if (session.status === 'BELUM_DIBUKA') return { label: 'Buka Presensi', onPress: () => askStatus(session, 'DIBUKA') };
     if (session.status === 'DIBUKA') return { label: 'Tutup Presensi', onPress: () => askStatus(session, 'DITUTUP') };
-    return { label: 'Lihat Rekap', onPress: () => router.push(`/rekap/${session.id}`) };
+    return { label: 'Lihat Rekap', onPress: () => router.push(`/sesi/${session.id}`) };
   }
 
   const header = (

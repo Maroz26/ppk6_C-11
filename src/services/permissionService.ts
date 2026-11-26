@@ -85,6 +85,18 @@ export const listenPermissionsByPraktikan = (
     error => onError?.(toError(error)),
   );
 
+// Izin pada satu sesi, untuk asisten (halaman Detail Sesi).
+export const listenPermissionsBySession = (
+  sessionId: string,
+  listener: PermissionListener,
+  onError?: ErrorListener,
+) =>
+  onSnapshot(
+    query(collection(db, COLLECTIONS.permissions), where('sessionId', '==', sessionId)),
+    snapshot => listener(toPermissions(snapshot)),
+    error => onError?.(toError(error)),
+  );
+
 // Izin untuk asisten: hanya yang sesinya dibuat asisten ini.
 // Rules mengizinkan asisten membaca semua izin, penyaringan sesi dilakukan di aplikasi.
 export const listenPermissionsForAssistant = (

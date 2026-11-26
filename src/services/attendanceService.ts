@@ -101,6 +101,18 @@ export const subscribeAttendanceBySession = (
     (error) => onError(toError(error)),
   );
 
+// Semua presensi, khusus asisten (rules mengizinkan asisten membaca semua).
+// Dipakai halaman Rekap Hadir untuk menghitung jumlah hadir per sesi.
+export const subscribeAllAttendances = (
+  onData: (rows: Attendance[]) => void,
+  onError: (e: Error) => void,
+): Unsubscribe =>
+  onSnapshot(
+    collection(db, COLLECTIONS.attendances),
+    (snapshot) => onData(toAttendances(snapshot)),
+    (error) => onError(toError(error)),
+  );
+
 // Riwayat presensi milik praktikan, realtime (terbaru di atas).
 // Filter praktikanId wajib: rules menolak praktikan membaca presensi orang lain.
 export const subscribeAttendanceByPraktikan = (
