@@ -30,7 +30,6 @@ import {
   resolveActionLabel,
   resolveLocationProblem,
 } from '../services/locationService';
-import { palette } from '../theme';
 import {
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
@@ -38,14 +37,15 @@ import {
   MAP_STYLE_URL,
   mapColors,
 } from '../theme/mapTheme';
+import { color as c, font, radius, sessionStatusColor, shadow } from '../theme/tokens';
 import { Lab, LabScheduleEntry } from '../types';
 import { formatEntryTime, getLabActivity, LabActivity, STATUS_LABEL } from '../utils/labActivity';
 import { circlePolygon, distanceMeters, formatDistance } from '../utils/geo';
 
 const STATUS_STYLE = {
-  BELUM_DIBUKA: { background: palette.champagne, text: palette.navy },
-  DIBUKA: { background: '#DDE9E0', text: '#355C49' },
-  DITUTUP: { background: '#F0E7E5', text: '#713D46' },
+  BELUM_DIBUKA: { background: sessionStatusColor.BELUM_DIBUKA.bg, text: sessionStatusColor.BELUM_DIBUKA.text },
+  DIBUKA: { background: sessionStatusColor.DIBUKA.bg, text: sessionStatusColor.DIBUKA.text },
+  DITUTUP: { background: sessionStatusColor.DITUTUP.bg, text: sessionStatusColor.DITUTUP.text },
 } as const;
 
 export default function LabMapScreen() {
@@ -217,16 +217,13 @@ export default function LabMapScreen() {
         <View style={styles.topBar}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Kembali"
+            accessibilityLabel="Kembali dari Peta Lab"
             onPress={() => router.back()}
-            style={styles.roundButton}
-            hitSlop={8}
+            style={({ pressed }) => [styles.headerPill, shadow.float, pressed && { opacity: 0.8 }]}
           >
-            <Ionicons name="arrow-back" size={20} color={palette.ivory} />
+            <Ionicons name="chevron-back" size={22} color={c.purpleDeep} />
+            <Text style={styles.titleText}>Peta Lab</Text>
           </Pressable>
-          <View style={styles.titlePill}>
-            <Text style={styles.titleText}>Peta laboratorium</Text>
-          </View>
         </View>
 
         {online === false && (
@@ -257,10 +254,10 @@ export default function LabMapScreen() {
       {/* Tombol kamera. */}
       <View style={styles.fabColumn} pointerEvents="box-none">
         <Pressable accessibilityRole="button" accessibilityLabel="Tampilkan semua lab" onPress={showAllLabs} style={styles.fab}>
-          <Ionicons name="business-outline" size={20} color={palette.navy} />
+          <Ionicons name="business-outline" size={20} color={c.purpleInk} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Ke posisiku" onPress={goToMe} style={styles.fab}>
-          <Ionicons name={location ? 'navigate' : 'navigate-outline'} size={20} color={palette.navy} />
+          <Ionicons name={location ? 'navigate' : 'navigate-outline'} size={20} color={c.purpleInk} />
         </Pressable>
       </View>
 
@@ -299,9 +296,9 @@ function Banner({ icon, text, action, onAction, loading }: {
   return (
     <View style={styles.banner} accessibilityRole="alert">
       {loading ? (
-        <ActivityIndicator size="small" color={palette.navy} />
+        <ActivityIndicator size="small" color={c.purpleInk} />
       ) : (
-        <Ionicons name={icon} size={18} color={palette.navy} />
+        <Ionicons name={icon} size={18} color={c.purpleInk} />
       )}
       <Text style={styles.bannerText}>{text}</Text>
       {!!action && onAction && (
@@ -326,7 +323,7 @@ function LabList({ labs, activities, loading, isAsisten, onSelect }: {
         <Text style={styles.sheetTitle}>Belum ada data laboratorium</Text>
         <Text style={styles.muted}>
           {isAsisten
-            ? 'Tambahkan lokasi laboratorium lewat Jadwal → Kelola laboratorium.'
+            ? 'Tambahkan lokasi laboratorium lewat menu Kelola Lab.'
             : 'Lokasi laboratorium belum diatur oleh asisten.'}
         </Text>
         {isAsisten && (
@@ -335,7 +332,7 @@ function LabList({ labs, activities, loading, isAsisten, onSelect }: {
             onPress={() => router.push('/asisten/lab')}
             style={styles.primaryButton}
           >
-            <Text style={styles.primaryText}>Kelola laboratorium</Text>
+            <Text style={styles.primaryText}>Kelola Lab</Text>
           </Pressable>
         )}
       </View>
@@ -347,7 +344,7 @@ function LabList({ labs, activities, loading, isAsisten, onSelect }: {
       <Text style={styles.sheetTitle}>Laboratorium Informatika</Text>
       <Text style={styles.muted}>Ketuk penanda atau nama lab untuk melihat praktikumnya.</Text>
       {loading && labs.length === 0 ? (
-        <ActivityIndicator color={palette.navy} style={{ marginTop: 12 }} />
+        <ActivityIndicator color={c.purpleInk} style={{ marginTop: 12 }} />
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {labs.map((lab) => {
@@ -359,7 +356,7 @@ function LabList({ labs, activities, loading, isAsisten, onSelect }: {
                 onPress={() => onSelect(lab)}
                 style={styles.labChip}
               >
-                <View style={[styles.dot, { backgroundColor: occupied ? mapColors.pinBusy : '#4E8A6A' }]} />
+                <View style={[styles.dot, { backgroundColor: occupied ? mapColors.pinBusy : mapColors.pinFree }]} />
                 <Text style={styles.labChipText}>{lab.nama}</Text>
                 <Text style={styles.labChipMeta}>{occupied ? 'Dipakai' : 'Kosong'}</Text>
               </Pressable>
@@ -387,13 +384,13 @@ function LabDetail({ lab, activity, distance, now, onClose }: {
           <Text style={styles.sheetTitle}>{lab.nama}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Tutup detail" onPress={onClose} style={styles.closeButton}>
-          <Ionicons name="close" size={18} color={palette.navy} />
+          <Ionicons name="close" size={18} color={c.purpleInk} />
         </Pressable>
       </View>
 
       <View style={styles.metaRow}>
-        <View style={[styles.badge, { backgroundColor: activity?.occupied ? '#F0E7E5' : '#DDE9E0' }]}>
-          <Text style={[styles.badgeText, { color: activity?.occupied ? '#713D46' : '#355C49' }]}>
+        <View style={[styles.badge, { backgroundColor: activity?.occupied ? c.warningSoft : c.successSoft }]}>
+          <Text style={[styles.badgeText, { color: activity?.occupied ? c.warning : c.success }]}>
             {activity?.occupied ? 'Sedang dipakai' : 'Kosong'}
           </Text>
         </View>
@@ -443,64 +440,69 @@ function EntryBlock({ title, entry, now, empty }: {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.ivory },
-  topArea: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 16, gap: 8 },
-  topBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  roundButton: {
-    width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.navy,
+  container: { flex: 1, backgroundColor: c.background },
+  topArea: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 17, gap: 8 },
+  topBar: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
+  headerPill: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    borderRadius: 35,
+    backgroundColor: c.card,
   },
-  titlePill: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, backgroundColor: palette.navy },
-  titleText: { color: palette.ivory, fontSize: 13, fontWeight: '700' },
+  titleText: { fontFamily: font.display, fontSize: 20, color: c.purpleDeep },
   banner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 12,
-    backgroundColor: palette.ivory, borderWidth: 1, borderColor: palette.taupe,
+    flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: radius.input,
+    backgroundColor: c.card, borderWidth: 2, borderColor: c.lavender,
   },
-  bannerText: { flex: 1, color: palette.navy, fontSize: 12, lineHeight: 17 },
-  bannerAction: { color: palette.navy, fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' },
-  fabColumn: { position: 'absolute', right: 16, bottom: 250, gap: 10 },
+  bannerText: { flex: 1, fontFamily: font.regular, color: c.ink, fontSize: 12, lineHeight: 17 },
+  bannerAction: { fontFamily: font.semibold, color: c.purpleDeep, fontSize: 12, textDecorationLine: 'underline' },
+  fabColumn: { position: 'absolute', right: 16, bottom: 260, gap: 10 },
   fab: {
-    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.ivory, borderWidth: 1, borderColor: palette.taupe,
+    width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: c.card, borderWidth: 2, borderColor: c.lavender,
   },
   sheet: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    backgroundColor: palette.ivory, borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    borderTopWidth: 1, borderColor: palette.taupe,
+    backgroundColor: c.card, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    borderTopWidth: 3, borderLeftWidth: 3, borderRightWidth: 3, borderColor: c.lavender,
   },
-  sheetBody: { padding: 18, gap: 8 },
-  sheetTitle: { color: palette.navy, fontSize: 18, fontWeight: '700' },
-  eyebrow: { color: palette.sapphire, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
-  muted: { color: palette.sapphire, fontSize: 12, lineHeight: 18, flexShrink: 1 },
+  sheetBody: { padding: 20, gap: 8 },
+  sheetTitle: { fontFamily: font.display, color: c.ink, fontSize: 24, lineHeight: 30 },
+  eyebrow: { fontFamily: font.regular, color: c.inkSoft, fontSize: 13 },
+  muted: { fontFamily: font.regular, color: c.muted, fontSize: 13, lineHeight: 19, flexShrink: 1 },
   chipRow: { gap: 8, paddingTop: 6 },
   labChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9,
-    borderRadius: 18, borderWidth: 1, borderColor: palette.taupe, backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, minHeight: 42,
+    borderRadius: radius.pill, borderWidth: 1.5, borderColor: c.lavender, backgroundColor: c.surface,
   },
-  labChipText: { color: palette.navy, fontSize: 13, fontWeight: '700' },
-  labChipMeta: { color: palette.sapphire, fontSize: 11 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  labChipText: { fontFamily: font.semibold, color: c.ink, fontSize: 13 },
+  labChipMeta: { fontFamily: font.regular, color: c.muted, fontSize: 12 },
+  dot: { width: 9, height: 9, borderRadius: 5 },
   detailHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   closeButton: {
-    width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.champagne,
+    width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: c.lavenderSoft,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  entry: { padding: 12, borderRadius: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: palette.champagne, gap: 4 },
-  entryTitle: { color: palette.sapphire, fontSize: 11, fontWeight: '700' },
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
+  badgeText: { fontFamily: font.semibold, fontSize: 11 },
+  entry: { padding: 14, borderRadius: radius.input, backgroundColor: c.surface, gap: 4 },
+  entryTitle: { fontFamily: font.medium, color: c.muted, fontSize: 12 },
   entryTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  entryName: { flex: 1, color: palette.navy, fontSize: 14, fontWeight: '700' },
+  entryName: { flex: 1, fontFamily: font.display, color: c.ink, fontSize: 18 },
   primaryButton: {
-    minHeight: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.navy, marginTop: 6,
+    minHeight: 50, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: c.plum, marginTop: 6,
   },
-  primaryText: { color: palette.ivory, fontSize: 13, fontWeight: '700' },
-  credit: { color: palette.taupe, fontSize: 10, textAlign: 'center', paddingBottom: 6 },
+  primaryText: { fontFamily: font.display, color: c.onDark, fontSize: 18 },
+  credit: { fontFamily: font.regular, color: c.muted, fontSize: 10, textAlign: 'center', paddingBottom: 6 },
   pinWrap: { alignItems: 'center' },
-  pinLabel: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, maxWidth: 120 },
-  pinLabelText: { color: mapColors.pinDot, fontSize: 11, fontWeight: '700' },
+  pinLabel: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, maxWidth: 130 },
+  pinLabelText: { fontFamily: font.semibold, color: mapColors.pinDot, fontSize: 12 },
   pinStem: { width: 3, height: 10, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
   userHalo: {
     width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
