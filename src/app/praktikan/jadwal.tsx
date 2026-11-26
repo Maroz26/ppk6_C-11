@@ -1,3 +1,3 @@
-import ScheduleScreen from '../../screens/ScheduleScreen';
+import JadwalScreen from '../../screens/JadwalScreen';
 
-export default ScheduleScreen;
+export default JadwalScreen;

@@ -1,6 +1,7 @@
 // src/utils/dateId.ts
 // Format tanggal berbahasa Indonesia untuk tampilan (tanpa bergantung locale perangkat).
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_PENDEK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
 
 export function namaHari(date: Date) {
@@ -30,4 +31,34 @@ export function labelHari(date: Date, now = new Date()) {
   if (isSameDay(date, now)) return 'Hari ini';
   if (isSameDay(date, besok)) return 'Besok';
   return `${namaHari(date)}, ${tanggalPendek(date)}`;
+}
+
+// "November 2026"
+export function namaBulanTahun(date: Date) {
+  return `${BULAN[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+// Date -> "2026-11-23" (format field tanggal di Firestore).
+export function toIsoDate(date: Date) {
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${m}-${d}`;
+}
+
+// Tanggal-tanggal yang tampil di kalender bulanan, minggu dimulai hari Senin.
+// Termasuk tanggal bulan sebelum/sesudah untuk mengisi baris pertama dan terakhir.
+export function calendarWeeks(month: Date): Date[][] {
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const offset = (first.getDay() + 6) % 7; // Senin = 0
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const rows = Math.ceil((offset + daysInMonth) / 7);
+  const weeks: Date[][] = [];
+  for (let r = 0; r < rows; r++) {
+    const week: Date[] = [];
+    for (let c = 0; c < 7; c++) {
+      week.push(new Date(month.getFullYear(), month.getMonth(), 1 - offset + r * 7 + c));
+    }
+    weeks.push(week);
+  }
+  return weeks;
 }

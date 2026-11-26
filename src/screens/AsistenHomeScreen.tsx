@@ -68,10 +68,10 @@ export default function AsistenHomeScreen() {
 
   // Sementara: Kelola Sesi & Rekap masih memakai halaman lama sampai halaman barunya dibuat.
   const menu: MenuItem[] = [
-    { key: 'kelola', label: 'Kelola Sesi', feather: 'edit-3', onPress: () => router.push('/asisten/jadwal') },
+    { key: 'kelola', label: 'Kelola Sesi', feather: 'edit-3', onPress: () => router.push('/asisten/kelola-sesi') },
     { key: 'jadwal', label: 'Jadwal', icon: 'jadwal', onPress: () => router.push('/asisten/jadwal') },
     { key: 'izin', label: 'Perizinan', icon: 'perizinan', onPress: () => router.push('/asisten/izin') },
-    { key: 'rekap', label: 'Rekap Hadir', icon: 'rekap', onPress: () => router.push('/asisten/jadwal') },
+    { key: 'rekap', label: 'Rekap Hadir', icon: 'rekap', onPress: () => router.push('/asisten/kelola-sesi') },
     { key: 'ulasan', label: 'Ulasan', icon: 'ulasan', onPress: () => router.push('/ulasan') },
     { key: 'lab', label: 'Kelola Lab', icon: 'peta', onPress: () => router.push('/asisten/lab') },
   ];

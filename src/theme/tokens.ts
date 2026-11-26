@@ -6,7 +6,9 @@
 // ===== Warna =====
 export const color = {
   // Merek
-  orange: '#D2A07F',        // Figma #DE9B6E, saturasi diturunkan agar di layar HP tidak terlalu menyala  orangeDark: '#B8754A',    // teks/ikon di atas permukaan terang yang butuh nuansa oranye
+  orange: '#DE9B6E',        // kartu sorotan (hero), navigasi bawah, latar sekunder
+  orangeDark: '#B8754A',    // teks/ikon di atas permukaan terang yang butuh nuansa oranye
+  brown: '#A76438',         // bukit di halaman Jadwal (Figma: jadwal-prak "Group 15")
   lavender: '#DEAEF8',      // kotak menu, garis tepi kartu, latar halaman auth
   lavenderSoft: '#F3E3FB',  // latar lembut (chip tidak aktif, sorotan tipis)
   purple: '#A580BA',        // aksen dekoratif (garis pemisah, ilustrasi)
@@ -37,6 +39,15 @@ export const color = {
   dangerSoft: '#F8E3E4',
   info: '#816491',
   infoSoft: '#F3E3FB',
+
+  // Kalender (Figma: jadwal-prak "Calendar dates")
+  dayBg: '#F3F1F5',
+  dayText: '#2F2539',
+  dayOtherBg: '#FBFAFB',     // tanggal bulan sebelum/sesudah
+  dayOtherText: '#8F8A96',   // Figma #B6B3BA, digelapkan sedikit agar terbaca
+  sundayBg: '#EEFCF6',
+  sundayText: '#2F8F88',     // Figma #4CAFA8, digelapkan sedikit agar terbaca
+  daySelected: '#684A79',
 
   // Aksen dari ilustrasi maskot
   lime: '#D4EC8C',
