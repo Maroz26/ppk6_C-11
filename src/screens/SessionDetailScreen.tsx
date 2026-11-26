@@ -344,7 +344,11 @@ function PraktikanSection({ session }: { session: Session }) {
         <BigButton label="Presensi Sekarang" icon="map-pin" onPress={() => router.push(`/presensi/${session.id}`)} />
       )}
       {state === 'BELUM' && (
-        <BigButton label="Ajukan Izin" variant="outline" onPress={() => router.push('/praktikan/izin')} />
+        <BigButton
+          label="Ajukan Izin"
+          variant="outline"
+          onPress={() => router.push({ pathname: '/praktikan/izin', params: { sessionId: session.id } })}
+        />
       )}
       {state === 'HADIR' && !reviewed && (
         <BigButton

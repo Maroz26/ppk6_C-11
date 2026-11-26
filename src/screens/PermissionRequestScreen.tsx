@@ -1,60 +1,72 @@
-import { Ionicons } from '@expo/vector-icons';
+// src/screens/PermissionRequestScreen.tsx
+// Perizinan praktikan (redesign): ajukan izin untuk satu sesi, lalu lihat riwayat dan keputusannya.
+// Bisa dibuka dengan ?sessionId=... (dari Detail Sesi) supaya sesinya langsung terpilih.
+import { Feather } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BottomSheet } from '../components/ui/BottomSheet';
+import { DecoratedScreen } from '../components/ui/DecoratedScreen';
+import { StatusPill } from '../components/ui/StatusPill';
 import { useApp } from '../context/AppContext';
-import {
-  createPermission,
-  listenPermissionsByPraktikan,
-  PermissionRecord,
-} from '../services/permissionService';
+import { useMyAttendances } from '../hooks/useAttendanceData';
+import { createPermission, listenPermissionsByPraktikan, PermissionRecord } from '../services/permissionService';
+import { color, font, radius } from '../theme/tokens';
 import { Session } from '../types';
+import { labelHari, toLocalDate } from '../utils/dateId';
+import { formatTanggal } from '../utils/formatTime';
 
-const palette = {
-  navy: '#112250',
-  sapphire: '#3B507D',
-  taupe: '#BEB7A7',
-  champagne: '#E7E2CE',
-  ivory: '#F5F4F0',
-};
-
-const statusColor = {
-  MENUNGGU: { background: '#E7E2CE', text: '#112250', label: 'Menunggu' },
-  DITERIMA: { background: '#DDE9E0', text: '#355C49', label: 'Diterima' },
-  DITOLAK: { background: '#F0E7E5', text: '#713D46', label: 'Ditolak' },
+const STATUS = {
+  MENUNGGU: { label: 'Menunggu', tone: 'info' },
+  DITERIMA: { label: 'Diterima', tone: 'success' },
+  DITOLAK: { label: 'Ditolak', tone: 'danger' },
 } as const;
 
+function sessionLine(s: Session) {
+  const d = toLocalDate(s.tanggal, s.jamMulai);
+  return `${d ? labelHari(d) : s.tanggal} · ${s.jamMulai} · Kelas ${s.kelas}`;
+}
+
 export default function PermissionRequestScreen() {
+  const { sessionId: initialId } = useLocalSearchParams<{ sessionId?: string }>();
   const { currentUser, sessions } = useApp();
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [reason, setReason] = useState('');
+  const uid = currentUser?.id;
+  const { data: myAttendances } = useMyAttendances(uid);
   const [history, setHistory] = useState<PermissionRecord[]>([]);
-  const [sessionPickerVisible, setSessionPickerVisible] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(initialId ?? null);
+  const [reason, setReason] = useState('');
+  const [picker, setPicker] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
 
-  const availableSessions = useMemo(() => {
-    if (!currentUser) return [];
-    return sessions.filter(session => session.enrolledStudents.includes(currentUser.id));
-  }, [currentUser, sessions]);
-
   useEffect(() => {
-    if (!currentUser) {
-      setHistory([]);
-      return;
-    }
-    return listenPermissionsByPraktikan(currentUser.id, setHistory);
-  }, [currentUser?.id]);
+    if (!uid) return undefined;
+    return listenPermissionsByPraktikan(uid, setHistory);
+  }, [uid]);
 
-  const submitRequest = async () => {
+  // Sesi yang bisa diajukan izin: diikuti, belum ditutup, belum hadir,
+  // dan belum punya pengajuan yang menunggu atau diterima.
+  const available = useMemo(() => {
+    if (!uid) return [];
+    const attended = new Set(myAttendances.map((a) => a.sessionId));
+    const requested = new Set(history.filter((h) => h.status !== 'DITOLAK').map((h) => h.sessionId));
+    return sessions
+      .filter((s) => s.enrolledStudents?.includes(uid))
+      .filter((s) => s.status !== 'DITUTUP' && !attended.has(s.id) && !requested.has(s.id))
+      .sort((a, b) => `${a.tanggal} ${a.jamMulai}`.localeCompare(`${b.tanggal} ${b.jamMulai}`));
+  }, [sessions, uid, myAttendances, history]);
+
+  const selected = available.find((s) => s.id === selectedId) ?? null;
+
+  async function submit() {
     setFeedback('');
     setError('');
     if (!currentUser) {
-      setError('Silakan pilih identitas praktikan terlebih dahulu.');
+      setError('Sesi login berakhir. Silakan login ulang.');
       return;
     }
-    if (!selectedSession) {
+    if (!selected) {
       setError('Pilih sesi praktikum terlebih dahulu.');
       return;
     }
@@ -62,204 +74,207 @@ export default function PermissionRequestScreen() {
       setError('Alasan ketidakhadiran wajib diisi.');
       return;
     }
-
-    setIsSubmitting(true);
+    setBusy(true);
     try {
       await createPermission({
-        sessionId: selectedSession.id,
+        sessionId: selected.id,
         praktikanId: currentUser.id,
         nama: currentUser.nama,
         nim: currentUser.nim,
         alasan: reason,
       });
       setReason('');
-      setFeedback('Pengajuan izin berhasil dikirim dan menunggu keputusan asisten.');
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Pengajuan izin gagal dikirim.');
+      setSelectedId(null);
+      setFeedback('Pengajuan terkirim. Tunggu keputusan asisten di riwayat di bawah.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Pengajuan izin gagal dikirim.');
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
-  };
-
-  const getSessionName = (sessionId: string) =>
-    sessions.find(session => session.id === sessionId)?.praktikum ?? 'Sesi tidak ditemukan';
+  }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.eyebrow}>PERIZINAN PRAKTIKAN</Text>
-        <Text style={styles.pageTitle}>Ajukan izin</Text>
-        <Text style={styles.pageDescription}>
-          Pilih sesi dan jelaskan alasan ketidakhadiran. Pengajuan akan diperiksa langsung oleh asisten.
-        </Text>
+    <DecoratedScreen title="Perizinan" tone="praktikan">
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Ajukan Izin</Text>
 
-        <View style={styles.formCard}>
-          <Text style={styles.fieldLabel}>Sesi praktikum</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setSessionPickerVisible(true)}
-            style={({ pressed }) => [styles.sessionSelector, pressed && styles.pressed]}>
-            <View style={styles.selectorText}>
-              <Text style={[styles.selectorTitle, !selectedSession && styles.placeholder]}>
-                {selectedSession?.praktikum ?? 'Pilih sesi'}
+        <Text style={styles.label}>Sesi praktikum</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Sesi praktikum: ${selected ? selected.praktikum : 'belum dipilih'}`}
+          onPress={() => setPicker(true)}
+          style={({ pressed }) => [styles.select, pressed && styles.pressed]}
+        >
+          <View style={styles.flex}>
+            <Text style={[styles.selectText, !selected && styles.placeholder]} numberOfLines={1}>
+              {selected ? selected.praktikum : 'Pilih sesi'}
+            </Text>
+            {selected && <Text style={styles.selectSub}>{sessionLine(selected)}</Text>}
+          </View>
+          <Feather name="chevron-down" size={18} color={color.purpleInk} />
+        </Pressable>
+
+        <Text style={styles.label}>Alasan</Text>
+        <TextInput
+          accessibilityLabel="Alasan ketidakhadiran"
+          value={reason}
+          onChangeText={(v) => {
+            setReason(v);
+            setError('');
+          }}
+          placeholder="Contoh: sakit, ada surat dokter"
+          placeholderTextColor={color.placeholder}
+          selectionColor={color.purpleDeep}
+          multiline
+          textAlignVertical="top"
+          style={styles.reason}
+        />
+
+        {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
+        {!!feedback && <Text style={styles.success} accessibilityLiveRegion="polite">{feedback}</Text>}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: busy }}
+          disabled={busy}
+          onPress={submit}
+          style={({ pressed }) => [styles.primary, (pressed || busy) && styles.pressed]}
+        >
+          <Text style={styles.primaryText}>{busy ? 'Mengirim...' : 'Kirim Pengajuan'}</Text>
+        </Pressable>
+      </View>
+
+      <Text style={styles.section}>Riwayat Izin</Text>
+      {history.length === 0 ? (
+        <Text style={styles.helper}>Belum ada pengajuan izin.</Text>
+      ) : (
+        history.map((h) => {
+          const s = sessions.find((x) => x.id === h.sessionId);
+          const st = STATUS[h.status];
+          return (
+            <Pressable
+              key={h.id}
+              accessibilityRole="button"
+              disabled={!s}
+              onPress={() => s && router.push(`/sesi/${s.id}`)}
+              style={({ pressed }) => [styles.historyCard, pressed && styles.pressed]}
+            >
+              <View style={styles.historyTop}>
+                <Text style={styles.historyTitle} numberOfLines={1}>{s ? s.praktikum : 'Sesi tidak ditemukan'}</Text>
+                <StatusPill label={st.label} tone={st.tone} />
+              </View>
+              {s && <Text style={styles.historySub}>{sessionLine(s)}</Text>}
+              <Text style={styles.historyReason}>{h.alasan}</Text>
+              <Text style={styles.historyDate}>
+                Diajukan {formatTanggal(h.diajukanPada)}
+                {h.diputuskanPada ? ` · Diputuskan ${formatTanggal(h.diputuskanPada)}` : ''}
               </Text>
-              {!!selectedSession && (
-                <Text style={styles.selectorSubtitle}>
-                  Kelas {selectedSession.kelas} · {selectedSession.tanggal}
-                </Text>
-              )}
-            </View>
-            <Ionicons name="chevron-down" size={18} color={palette.sapphire} />
-          </Pressable>
+            </Pressable>
+          );
+        })
+      )}
 
-          <Text style={styles.fieldLabel}>Alasan ketidakhadiran</Text>
-          <TextInput
-            accessibilityLabel="Alasan ketidakhadiran"
-            value={reason}
-            onChangeText={value => {
-              setReason(value);
-              setError('');
-            }}
-            placeholder="Tuliskan alasan izin secara singkat"
-            placeholderTextColor="#7C879B"
-            multiline
-            textAlignVertical="top"
-            style={styles.reasonInput}
-          />
-          <Text style={styles.helperText}>Alasan tidak boleh kosong sebelum pengajuan dikirim.</Text>
-
-          {!!error && <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-          {!!feedback && <Text accessibilityLiveRegion="polite" style={styles.feedback}>{feedback}</Text>}
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={isSubmitting}
-            onPress={submitRequest}
-            style={({ pressed }) => [styles.submitButton, (pressed || isSubmitting) && styles.pressed]}>
-            <Text style={styles.submitButtonText}>{isSubmitting ? 'Mengirim...' : 'Kirim pengajuan'}</Text>
-            <Ionicons name="arrow-forward" size={17} color={palette.ivory} />
-          </Pressable>
-        </View>
-
-        <View style={styles.historyHeader}>
-          <Text style={styles.sectionTitle}>Riwayat pengajuan</Text>
-          <Text style={styles.historyCount}>{history.length}</Text>
-        </View>
-        {history.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Ionicons name="document-text-outline" size={26} color={palette.taupe} />
-            <Text style={styles.emptyTitle}>Belum ada pengajuan</Text>
-            <Text style={styles.emptyDescription}>Riwayat izin yang kamu kirim akan tampil di sini.</Text>
-          </View>
+      <BottomSheet visible={picker} title="Pilih sesi" onClose={() => setPicker(false)}>
+        {available.length === 0 ? (
+          <Text style={styles.helper}>
+            Tidak ada sesi yang bisa diajukan izin. Sesi yang sudah ditutup, sudah kamu hadiri, atau sudah diajukan tidak ditampilkan.
+          </Text>
         ) : (
-          history.map(item => {
-            const status = statusColor[item.status];
-            return (
-              <View key={item.id} style={styles.historyCard}>
-                <View style={styles.historyTop}>
-                  <Text style={styles.historyTitle}>{getSessionName(item.sessionId)}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: status.background }]}>
-                    <Text style={[styles.statusText, { color: status.text }]}>{status.label}</Text>
-                  </View>
-                </View>
-                <Text style={styles.historyMeta}>Diajukan {new Date(item.diajukanPada).toLocaleString('id-ID')}</Text>
-                <Text style={styles.historyReason}>{item.alasan}</Text>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
-
-      <Modal
-        visible={sessionPickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSessionPickerVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.pickerCard}>
-            <View style={styles.pickerHeader}>
-              <View>
-                <Text style={styles.eyebrow}>SESI PRAKTIKUM</Text>
-                <Text style={styles.pickerTitle}>Pilih sesi</Text>
-              </View>
+          <ScrollView style={styles.sheetList}>
+            {available.map((s) => (
               <Pressable
+                key={s.id}
                 accessibilityRole="button"
-                accessibilityLabel="Tutup pilihan sesi"
-                onPress={() => setSessionPickerVisible(false)}
-                style={styles.closeButton}>
-                <Ionicons name="close" size={20} color={palette.navy} />
+                accessibilityState={{ selected: s.id === selectedId }}
+                onPress={() => {
+                  setSelectedId(s.id);
+                  setPicker(false);
+                  setError('');
+                }}
+                style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+              >
+                <View style={styles.flex}>
+                  <Text style={styles.optionTitle}>{s.praktikum}</Text>
+                  <Text style={styles.selectSub}>{sessionLine(s)}</Text>
+                </View>
+                {s.id === selectedId && <Feather name="check" size={18} color={color.plum} />}
               </Pressable>
-            </View>
-            {availableSessions.length === 0 ? (
-              <Text style={styles.emptyDescription}>Tidak ada sesi praktikum yang terdaftar.</Text>
-            ) : (
-              availableSessions.map(session => (
-                <Pressable
-                  key={session.id}
-                  onPress={() => {
-                    setSelectedSession(session);
-                    setSessionPickerVisible(false);
-                    setError('');
-                  }}
-                  style={styles.sessionOption}>
-                  <View style={styles.sessionOptionIcon}>
-                    <Ionicons name="calendar-outline" size={18} color={palette.ivory} />
-                  </View>
-                  <View style={styles.selectorText}>
-                    <Text style={styles.selectorTitle}>{session.praktikum}</Text>
-                    <Text style={styles.selectorSubtitle}>
-                      Kelas {session.kelas} · {session.tanggal} · {session.jamMulai}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={palette.sapphire} />
-                </Pressable>
-              ))
-            )}
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+            ))}
+          </ScrollView>
+        )}
+      </BottomSheet>
+    </DecoratedScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.navy },
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
-  eyebrow: { color: palette.taupe, fontFamily: 'Inter', fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
-  pageTitle: { color: palette.ivory, fontFamily: 'Inter', fontSize: 28, fontWeight: '700', marginTop: 5 },
-  pageDescription: { color: palette.champagne, fontFamily: 'Inter', fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 18 },
-  formCard: { padding: 18, borderRadius: 20, backgroundColor: palette.ivory },
-  fieldLabel: { color: palette.navy, fontFamily: 'Inter', fontSize: 12, fontWeight: '700', marginBottom: 8 },
-  sessionSelector: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: palette.taupe, borderRadius: 13, paddingHorizontal: 13, marginBottom: 18, backgroundColor: '#FFFFFF' },
-  selectorText: { flex: 1 },
-  selectorTitle: { color: palette.navy, fontFamily: 'Inter', fontSize: 13, fontWeight: '700' },
-  placeholder: { color: '#7C879B', fontWeight: '400' },
-  selectorSubtitle: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 11, marginTop: 4 },
-  reasonInput: { minHeight: 118, borderWidth: 1, borderColor: palette.taupe, borderRadius: 13, backgroundColor: '#FFFFFF', padding: 13, color: palette.navy, fontFamily: 'Inter', fontSize: 13, lineHeight: 19 },
-  helperText: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 10, marginTop: 7 },
-  submitButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: palette.navy, borderRadius: 13, marginTop: 17 },
-  submitButtonText: { color: palette.ivory, fontFamily: 'Inter', fontSize: 13, fontWeight: '700' },
-  pressed: { opacity: 0.75 },
-  error: { color: '#713D46', backgroundColor: '#F0E7E5', borderRadius: 10, padding: 10, fontFamily: 'Inter', fontSize: 11, lineHeight: 17, marginTop: 10 },
-  feedback: { color: '#355C49', backgroundColor: '#DDE9E0', borderRadius: 10, padding: 10, fontFamily: 'Inter', fontSize: 11, lineHeight: 17, marginTop: 10 },
-  historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 25, marginBottom: 11 },
-  sectionTitle: { color: palette.ivory, fontFamily: 'Inter', fontSize: 17, fontWeight: '700' },
-  historyCount: { color: palette.navy, backgroundColor: palette.champagne, minWidth: 26, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 20, textAlign: 'center', fontFamily: 'Inter', fontSize: 11, fontWeight: '700' },
-  emptyCard: { alignItems: 'center', backgroundColor: palette.sapphire, borderWidth: 1, borderColor: '#52658A', borderRadius: 18, padding: 22 },
-  emptyTitle: { color: palette.ivory, fontFamily: 'Inter', fontSize: 14, fontWeight: '700', marginTop: 9 },
-  emptyDescription: { color: palette.champagne, fontFamily: 'Inter', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
-  historyCard: { padding: 15, backgroundColor: palette.ivory, borderRadius: 16, marginBottom: 10 },
-  historyTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  historyTitle: { flex: 1, color: palette.navy, fontFamily: 'Inter', fontSize: 14, fontWeight: '700' },
-  statusBadge: { paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
-  statusText: { fontFamily: 'Inter', fontSize: 9, fontWeight: '700' },
-  historyMeta: { color: palette.sapphire, fontFamily: 'Inter', fontSize: 10, marginTop: 6 },
-  historyReason: { color: palette.navy, fontFamily: 'Inter', fontSize: 12, lineHeight: 18, marginTop: 10 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,17,40,0.7)' },
-  pickerCard: { maxHeight: '80%', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 30, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: palette.ivory },
-  pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  pickerTitle: { color: palette.navy, fontFamily: 'Inter', fontSize: 21, fontWeight: '700', marginTop: 4 },
-  closeButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.champagne },
-  sessionOption: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#E4E0D6' },
-  sessionOptionIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: palette.sapphire, alignItems: 'center', justifyContent: 'center' },
+  flex: { flex: 1 },
+  pressed: { opacity: 0.8 },
+  card: {
+    backgroundColor: color.card,
+    borderWidth: 3,
+    borderColor: color.lavender,
+    borderRadius: radius.card,
+    padding: 20,
+    gap: 8,
+  },
+  cardTitle: { fontFamily: font.display, fontSize: 24, color: color.ink, marginBottom: 4 },
+  label: { fontFamily: font.medium, fontSize: 14, color: color.ink, marginTop: 6 },
+  select: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+  },
+  selectText: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
+  selectSub: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  placeholder: { fontFamily: font.regular, fontStyle: 'italic', color: color.placeholder },
+  reason: {
+    minHeight: 110,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    fontFamily: font.regular,
+    fontSize: 15,
+    color: color.ink,
+  },
+  error: { fontFamily: font.medium, fontSize: 13, lineHeight: 19, color: color.danger, backgroundColor: color.dangerSoft, borderRadius: radius.sm, padding: 12 },
+  success: { fontFamily: font.medium, fontSize: 13, lineHeight: 19, color: color.success, backgroundColor: color.successSoft, borderRadius: radius.sm, padding: 12 },
+  primary: { minHeight: 52, marginTop: 8, borderRadius: radius.pill, backgroundColor: color.plum, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontFamily: font.display, fontSize: 19, color: color.onDark },
+
+  section: { fontFamily: font.display, fontSize: 22, color: color.ink, marginTop: 6 },
+  helper: { fontFamily: font.regular, fontSize: 13, lineHeight: 19, color: color.muted },
+  historyCard: {
+    backgroundColor: color.surface,
+    borderRadius: radius.card,
+    borderWidth: 3,
+    borderColor: color.lavender,
+    padding: 16,
+    gap: 4,
+  },
+  historyTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  historyTitle: { flex: 1, fontFamily: font.display, fontSize: 20, color: color.ink },
+  historySub: { fontFamily: font.regular, fontSize: 12, color: color.muted },
+  historyReason: { fontFamily: font.regular, fontSize: 14, lineHeight: 20, color: color.inkSoft, marginTop: 4 },
+  historyDate: { fontFamily: font.regular, fontSize: 11, color: color.muted, marginTop: 4 },
+
+  sheetList: { maxHeight: 320 },
+  option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 56,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: color.divider,
+  },
+  optionTitle: { fontFamily: font.semibold, fontSize: 15, color: color.ink },
 });

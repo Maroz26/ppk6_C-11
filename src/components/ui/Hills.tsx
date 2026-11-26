@@ -57,10 +57,12 @@ export function hillsHeight(preset: HillsPreset) {
   return PRESETS[preset].height;
 }
 
-export function Hills({ preset = 'jadwal' }: { preset?: HillsPreset }) {
+// hillColor mengganti warna lapisan bukit pertama (misalnya cokelat untuk halaman praktikan).
+export function Hills({ preset = 'jadwal', hillColor }: { preset?: HillsPreset; hillColor?: string }) {
   const { width } = useWindowDimensions();
   const k = width / FIGMA_WIDTH;
-  const { height, layers } = PRESETS[preset];
+  const { height } = PRESETS[preset];
+  const layers = PRESETS[preset].layers.map((layer, i) => (i === 0 && hillColor ? { ...layer, fill: hillColor } : layer));
   return (
     <View pointerEvents="none" style={[styles.layer, { height: height * k }]}>
       {layers.map((layer, li) => (
