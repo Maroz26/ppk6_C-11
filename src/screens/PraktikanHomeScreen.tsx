@@ -10,6 +10,7 @@ import { HeroCard } from '../components/ui/HeroCard';
 import { MenuGrid, MenuItem } from '../components/ui/MenuTile';
 import { PracticumCard } from '../components/ui/PracticumCard';
 import { useApp } from '../context/AppContext';
+import { useNotifications } from '../hooks/useNotifications';
 import { useMyAttendances } from '../hooks/useAttendanceData';
 import { useLabs } from '../hooks/useLabs';
 import { useNow } from '../hooks/useNow';
@@ -19,6 +20,7 @@ import { Session } from '../types';
 import { isSameDay, labelHari, namaHari, tanggalPendek, toLocalDate } from '../utils/dateId';
 
 export default function PraktikanHomeScreen() {
+  const { unreadCount } = useNotifications();
   const { currentUser, sessions } = useApp();
   const { labs } = useLabs();
   const { data: myAttendances } = useMyAttendances(currentUser?.id);
@@ -76,7 +78,8 @@ export default function PraktikanHomeScreen() {
       <GreetingHeader
         name={currentUser?.nama ?? ''}
         subtitle={`NIM.${currentUser?.nim ?? '-'}`}
-        onBellPress={() => router.push('/praktikan/izin')}
+        onBellPress={() => router.push('/notifikasi')}
+        badge={unreadCount}
       />
       <HeroCard
         dayLabel={namaHari(now)}

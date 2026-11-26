@@ -12,6 +12,7 @@ import { HeroCard } from '../components/ui/HeroCard';
 import { MenuGrid, MenuItem } from '../components/ui/MenuTile';
 import { PracticumCard } from '../components/ui/PracticumCard';
 import { useApp } from '../context/AppContext';
+import { useNotifications } from '../hooks/useNotifications';
 import { useLabs } from '../hooks/useLabs';
 import { useNow } from '../hooks/useNow';
 import { findLabForSession } from '../services/labService';
@@ -25,6 +26,7 @@ const theme = roleTheme.asisten;
 type Pending = { session: Session; next: 'DIBUKA' | 'DITUTUP' } | null;
 
 export default function AsistenHomeScreen() {
+  const { unreadCount } = useNotifications();
   const { currentUser, sessions } = useApp();
   const { labs } = useLabs();
   const now = useNow();
@@ -99,7 +101,8 @@ export default function AsistenHomeScreen() {
         tone="asisten"
         name={currentUser?.nama ?? ''}
         subtitle={`NIM.${currentUser?.nim ?? '-'}`}
-        onBellPress={() => router.push('/asisten/izin')}
+        onBellPress={() => router.push('/notifikasi')}
+        badge={unreadCount}
       />
       <HeroCard
         variant="asisten"

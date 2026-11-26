@@ -51,6 +51,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="lab/form" />
         <Stack.Screen name="peta" />
         <Stack.Screen name="profil" />
+        <Stack.Screen name="notifikasi" />
         <Stack.Screen name="sesi/[id]" />
         <Stack.Screen name="testAi" options={{ headerShown: true, title: 'Analisis AI' }} />
       </Stack.Protected>

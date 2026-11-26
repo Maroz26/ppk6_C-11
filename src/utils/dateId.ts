@@ -62,3 +62,25 @@ export function calendarWeeks(month: Date): Date[][] {
   }
   return weeks;
 }
+
+// "Baru saja" / "5 menit lalu" / "3 jam lalu" / "Kemarin" / "4 hari lalu" / "23 Nov"
+// Untuk waktu di masa depan: "Dalam 2 jam" / "Besok 08:00".
+export function waktuRelatif(date: Date, now = new Date()) {
+  const diff = now.getTime() - date.getTime();
+  const menit = Math.round(Math.abs(diff) / 60000);
+  const jam = Math.round(menit / 60);
+  if (diff < 0) {
+    if (menit < 60) return `Dalam ${Math.max(menit, 1)} menit`;
+    if (isSameDay(date, now)) return `Dalam ${jam} jam`;
+    const hh = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    return `${labelHari(date, now)} ${hh}`;
+  }
+  if (menit < 1) return 'Baru saja';
+  if (menit < 60) return `${menit} menit lalu`;
+  if (isSameDay(date, now)) return `${jam} jam lalu`;
+  const kemarin = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (isSameDay(date, kemarin)) return 'Kemarin';
+  const hari = Math.floor(diff / 86400000);
+  if (hari < 7) return `${hari} hari lalu`;
+  return tanggalPendek(date);
+}
