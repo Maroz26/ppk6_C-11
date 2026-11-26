@@ -1,5 +1,9 @@
+// Dipertahankan untuk kompatibilitas. Pakai `font` dari ./tokens untuk kode baru.
+import { font } from './tokens';
+
 export const fonts = {
-  regular: 'Poppins_100Regular',
-  semibold: 'Poppins_200SemiBold',
-  bold: 'Poppins_500Bold',
+  regular: font.regular,
+  semibold: font.semibold,
+  bold: font.bold,
+  display: font.display,
 };

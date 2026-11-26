@@ -1,7 +1,7 @@
 // src/theme/mapTheme.ts
 // Semua warna dan pengaturan tampilan peta dikumpulkan di sini.
 // Saat UI dirombak, cukup ubah file ini (dan file screen), tanpa menyentuh hook/servis.
-import { palette } from '../theme';
+import { color } from './tokens';
 
 // Peta dasar gratis tanpa API key (OpenFreeMap, data © OpenStreetMap).
 // Pilihan lain: 'https://tiles.openfreemap.org/styles/liberty' (lebih berwarna).
@@ -13,13 +13,13 @@ export const DEFAULT_ZOOM = 17.2;
 export const FOCUS_ZOOM = 18;
 
 export const mapColors = {
-  pinFree: palette.sapphire,     // lab kosong
-  pinBusy: '#8A3B48',            // lab sedang dipakai
-  pinSelected: palette.navy,     // lab yang sedang dipilih
-  pinDot: palette.champagne,
-  radiusFill: palette.sapphire,
-  radiusFillOpacity: 0.12,
-  radiusLine: palette.sapphire,
+  pinFree: color.success,        // lab kosong
+  pinBusy: color.orangeDark,     // lab sedang dipakai
+  pinSelected: color.plum,       // lab yang sedang dipilih
+  pinDot: color.onDark,          // teks di dalam penanda
+  radiusFill: color.purple,
+  radiusFillOpacity: 0.14,
+  radiusLine: color.purpleDeep,
   user: '#2F7BEF',               // titik posisi pengguna
   userHalo: 'rgba(47,123,239,0.18)',
   userBorder: '#FFFFFF',

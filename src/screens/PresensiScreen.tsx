@@ -1,11 +1,13 @@
 // src/screens/PresensiScreen.tsx
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { EmptyState } from '../components/EmptyState';
-import { StatusBadge } from '../components/StatusBadge';
-import { SuccessModal } from '../components/SuccessModal';
+// Presensi praktikan (redesign). Alurnya sama seperti sprint 3:
+// ambil lokasi perangkat -> hitung jarak ke lab -> tombol presensi aktif hanya di dalam radius
+// saat sesi berstatus Dibuka. Yang berubah tampilannya.
+import { Feather } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { DecoratedScreen } from '../components/ui/DecoratedScreen';
+import { OrangePanel } from '../components/ui/OrangePanel';
 import { useApp } from '../context/AppContext';
 import { useMyAttendances } from '../hooks/useAttendanceData';
 import { useLabs } from '../hooks/useLabs';
@@ -19,10 +21,11 @@ import {
   resolveActionLabel,
   resolveLocationProblem,
 } from '../services/locationService';
-import { colors } from '../theme/colors';
+import { images } from '../theme/assets';
+import { color, font, radius, sessionStatusColor } from '../theme/tokens';
 import { Attendance } from '../types';
-import { distanceMeters, formatDistance, isWithinRadius } from '../utils/geo';
 import { formatJamDetik, formatTanggal } from '../utils/formatTime';
+import { distanceMeters, formatDistance, isWithinRadius } from '../utils/geo';
 
 const ATTENDANCE_ERROR_MESSAGES = {
   SESI_BELUM_DIBUKA: 'Sesi belum dibuka oleh asisten.',
@@ -50,8 +53,8 @@ export default function PresensiScreen() {
   const [check, setCheck] = useState<CheckState>({ phase: 'checking' });
   const [catatan, setCatatan] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [record, setRecord] = useState<Attendance | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
 
   const runCheck = useCallback(async () => {
     setCheck({ phase: 'checking' });
@@ -65,11 +68,10 @@ export default function PresensiScreen() {
       return;
     }
     const labCoord = { latitude: lab.latitude, longitude: lab.longitude };
-    const jarak = distanceMeters(result.location, labCoord);
     setCheck({
       phase: 'ok',
       coords: result.location,
-      jarak,
+      jarak: distanceMeters(result.location, labCoord),
       inRadius: isWithinRadius(result.location, labCoord, lab.radius),
     });
   }, [lab]);
@@ -78,182 +80,252 @@ export default function PresensiScreen() {
     runCheck();
   }, [runCheck]);
 
-  const handleResolve = async () => {
+  async function handleResolve() {
     if (check.phase !== 'error') return;
     await resolveLocationProblem(check.reason);
     runCheck();
-  };
+  }
 
-  if (!session) return <EmptyState title="Sesi tidak ditemukan" />;
+  if (!session) {
+    return (
+      <DecoratedScreen title="Presensi" tone="praktikan">
+        <View style={styles.card}>
+          <Text style={styles.title}>Sesi tidak ditemukan</Text>
+          <Text style={styles.body}>Sesi ini mungkin sudah dihapus, atau kamu tidak terdaftar di dalamnya.</Text>
+        </View>
+      </DecoratedScreen>
+    );
+  }
 
-  const canSubmit =
-    !myRecord && session.status === 'DIBUKA' && !!lab && check.phase === 'ok' && check.inRadius;
+  const canSubmit = !myRecord && session.status === 'DIBUKA' && !!lab && check.phase === 'ok' && check.inRadius;
 
-  const handleSubmit = async () => {
-    if (!currentUser || submitting || check.phase !== 'ok') return;
+  async function handleSubmit() {
+    if (!session || !currentUser || submitting || check.phase !== 'ok') return;
     setSubmitting(true);
+    setSubmitError('');
     try {
       const result = await submitAttendance(session, currentUser, catatan.trim(), lab ?? null, check.coords);
       if (result.ok) {
         setRecord(result.record);
-        setModalVisible(true);
         setCatatan('');
       } else {
-        Alert.alert('Presensi gagal', ATTENDANCE_ERROR_MESSAGES[result.reason]);
+        setSubmitError(ATTENDANCE_ERROR_MESSAGES[result.reason]);
       }
     } catch {
-      Alert.alert('Presensi gagal', 'Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.');
+      setSubmitError('Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.');
     } finally {
       setSubmitting(false);
     }
-  };
+  }
+
+  const badge = sessionStatusColor[session.status];
+
+  // Tampilan lingkaran status lokasi.
+  const loc = (() => {
+    if (check.phase === 'checking') return { icon: null, tint: color.purpleDeep, bg: color.lavenderSoft, big: '...', text: 'Mengambil lokasi perangkat...' };
+    if (check.phase === 'error') return { icon: 'alert-triangle' as const, tint: color.danger, bg: color.dangerSoft, big: '!', text: locationErrorMessage(check.reason) };
+    if (!lab) return { icon: 'alert-triangle' as const, tint: color.danger, bg: color.dangerSoft, big: '!', text: 'Lokasi laboratorium belum diatur asisten.' };
+    return check.inRadius
+      ? { icon: 'check' as const, tint: color.success, bg: color.successSoft, big: formatDistance(check.jarak), text: `Kamu di dalam area ${lab.nama}.` }
+      : { icon: 'x' as const, tint: color.danger, bg: color.dangerSoft, big: formatDistance(check.jarak), text: `Kamu di luar area ${lab.nama}. Mendekatlah sampai jarak maksimal ${lab.radius} m.` };
+  })();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <DecoratedScreen title="Presensi" tone="praktikan">
       <View style={styles.card}>
-        <View style={styles.topRow}>
-          <Text style={styles.title}>{session.praktikum} - Kelas {session.kelas}</Text>
-          <StatusBadge status={session.status} />
+        <View style={styles.row}>
+          <Feather name="map-pin" size={18} color={color.inkSoft} />
+          <Text style={styles.location} numberOfLines={1}>{lab ? `${lab.nama}, ${lab.gedung}` : session.ruang}</Text>
+          <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+            <Text style={[styles.badgeText, { color: badge.text }]}>{badge.label}</Text>
+          </View>
         </View>
-        <Text style={styles.subtitle}>{session.ruang} · {formatTanggal(session.tanggal)} · {session.jamMulai}-{session.jamSelesai}</Text>
+        <Text style={styles.title}>{session.praktikum}</Text>
+        <Text style={styles.body}>
+          {formatTanggal(session.tanggal)} · {session.jamMulai} - {session.jamSelesai} · Kelas {session.kelas}
+        </Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>Pemeriksaan Lokasi</Text>
-
-        {check.phase === 'checking' && (
-          <View style={styles.statusRow}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.statusText}>Mengambil lokasi perangkat...</Text>
+      <OrangePanel title="Lokasi Kamu">
+        <View style={styles.locRow}>
+          <View style={[styles.circle, { backgroundColor: loc.bg }]}>
+            {check.phase === 'checking' ? (
+              <ActivityIndicator color={loc.tint} />
+            ) : (
+              <Feather name={loc.icon ?? 'alert-triangle'} size={28} color={loc.tint} />
+            )}
           </View>
-        )}
-
-        {check.phase === 'error' && (
-          <View style={styles.statusRow}>
-            <Ionicons name="warning-outline" size={20} color={colors.statusSoft.DITUTUP.text} />
-            <Text style={[styles.statusText, { color: colors.statusSoft.DITUTUP.text }]}>
-              {locationErrorMessage(check.reason)}
-            </Text>
+          <View style={styles.flex}>
+            {check.phase === 'ok' && lab && <Text style={[styles.distance, { color: loc.tint }]}>{loc.big}</Text>}
+            <Text style={styles.body} accessibilityLiveRegion="polite">{loc.text}</Text>
           </View>
-        )}
+        </View>
 
-        {check.phase === 'ok' && !lab && (
-          <View style={styles.statusRow}>
-            <Ionicons name="warning-outline" size={20} color={colors.statusSoft.DITUTUP.text} />
-            <Text style={[styles.statusText, { color: colors.statusSoft.DITUTUP.text }]}>
-              Lokasi laboratorium belum diatur asisten.
-            </Text>
-          </View>
-        )}
-
-        {check.phase === 'ok' && lab && (
-          <View style={styles.statusRow}>
-            <Ionicons
-              name={check.inRadius ? 'checkmark-circle' : 'close-circle'}
-              size={20}
-              color={check.inRadius ? colors.statusSoft.DIBUKA.text : colors.statusSoft.DITUTUP.text}
-            />
-            <Text style={[styles.statusText, { color: check.inRadius ? colors.statusSoft.DIBUKA.text : colors.statusSoft.DITUTUP.text }]}>
-              {check.inRadius
-                ? `Dalam radius lab (${formatDistance(check.jarak)} dari ${lab.nama})`
-                : `Di luar radius lab (${formatDistance(check.jarak)} dari ${lab.nama}, maks ${lab.radius} m)`}
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.actionRow}>
+        <View style={styles.smallActions}>
           {check.phase === 'error' && resolveActionLabel(check.reason) && (
-            <Pressable style={styles.linkBtn} onPress={handleResolve}>
-              <Ionicons name="settings-outline" size={16} color={colors.primary} />
-              <Text style={styles.linkBtnText}>{resolveActionLabel(check.reason)}</Text>
+            <Pressable accessibilityRole="button" onPress={handleResolve} style={({ pressed }) => [styles.outline, pressed && styles.pressed]}>
+              <Feather name="settings" size={16} color={color.purpleInk} />
+              <Text style={styles.outlineText}>{resolveActionLabel(check.reason)}</Text>
             </Pressable>
           )}
           {check.phase !== 'checking' && (
-            <Pressable style={styles.linkBtn} onPress={runCheck}>
-              <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-              <Text style={styles.linkBtnText}>Periksa ulang lokasi</Text>
+            <Pressable accessibilityRole="button" onPress={runCheck} style={({ pressed }) => [styles.outline, pressed && styles.pressed]}>
+              <Feather name="refresh-cw" size={16} color={color.purpleInk} />
+              <Text style={styles.outlineText}>Periksa ulang</Text>
             </Pressable>
           )}
         </View>
-      </View>
+      </OrangePanel>
 
       <View style={styles.card}>
         {loadingMine ? (
-          <ActivityIndicator color={colors.primary} />
+          <ActivityIndicator color={color.plum} />
         ) : myRecord ? (
-          <View style={styles.notice}>
-            <Ionicons name="checkmark-circle" size={22} color={colors.statusSoft.DIBUKA.text} />
-            <Text style={styles.noticeText}>Kamu sudah presensi pukul {formatJamDetik(myRecord.waktu)}</Text>
+          <View style={styles.row}>
+            <View style={[styles.circleSmall, { backgroundColor: color.successSoft }]}>
+              <Feather name="check" size={20} color={color.success} />
+            </View>
+            <Text style={[styles.body, styles.flex]}>Kamu sudah presensi pukul {formatJamDetik(myRecord.waktu)}.</Text>
           </View>
         ) : (
           <>
             <Text style={styles.label}>Catatan (opsional)</Text>
             <TextInput
+              accessibilityLabel="Catatan presensi"
               style={styles.input}
               value={catatan}
               onChangeText={setCatatan}
               placeholder="Contoh: laptop dipinjam"
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={color.placeholder}
+              selectionColor={color.purpleDeep}
               maxLength={100}
             />
+            {!!submitError && <Text style={styles.error} accessibilityRole="alert">{submitError}</Text>}
             <Pressable
-              style={({ pressed }) => [styles.btn, (pressed || submitting || !canSubmit) && styles.btnDisabled]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: submitting || !canSubmit }}
               onPress={handleSubmit}
               disabled={submitting || !canSubmit}
+              style={({ pressed }) => [styles.primary, (!canSubmit || submitting) && styles.primaryDisabled, pressed && styles.pressed]}
             >
-              {submitting ? (
-                <ActivityIndicator color={colors.textOnPrimary} />
-              ) : (
-                <Ionicons name="finger-print-outline" size={20} color={colors.textOnPrimary} />
-              )}
-              <Text style={styles.btnText}>{submitting ? 'Menyimpan...' : 'Presensi Sekarang'}</Text>
+              {submitting && <ActivityIndicator color={color.onDark} />}
+              <Text style={styles.primaryText}>{submitting ? 'Menyimpan...' : 'Presensi Sekarang'}</Text>
             </Pressable>
-            {!canSubmit && session.status !== 'DIBUKA' && (
-              <Text style={styles.hint}>Presensi hanya bisa dilakukan saat sesi berstatus "Dibuka".</Text>
+            {session.status !== 'DIBUKA' && (
+              <Text style={styles.hint}>Presensi hanya bisa dilakukan saat sesi berstatus Dibuka.</Text>
             )}
           </>
         )}
       </View>
 
-      <SuccessModal
-        visible={modalVisible}
-        record={record}
-        sessionLabel={`${session.praktikum} - Kelas ${session.kelas}`}
-        onClose={() => setModalVisible(false)}
-      />
-    </ScrollView>
+      {/* Dialog berhasil */}
+      <Modal transparent animationType="fade" visible={!!record} onRequestClose={() => setRecord(null)}>
+        <View style={styles.backdrop}>
+          <View style={styles.dialog}>
+            <Image source={images.mascotHead} style={styles.mascot} resizeMode="contain" />
+            <Text style={styles.dialogTitle}>Presensi Berhasil!</Text>
+            <Text style={styles.body}>{session.praktikum} · Kelas {session.kelas}</Text>
+            {record && (
+              <View style={styles.timeBox}>
+                <Text style={styles.timeValue}>{formatJamDetik(record.waktu)}</Text>
+                <Text style={styles.hint}>
+                  {formatTanggal(record.waktu)}
+                  {record.jarakMeter != null ? ` · ${Math.round(record.jarakMeter)} m dari lab` : ''}
+                </Text>
+              </View>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setRecord(null);
+                router.back();
+              }}
+              style={({ pressed }) => [styles.primary, pressed && styles.pressed]}
+            >
+              <Text style={styles.primaryText}>Selesai</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </DecoratedScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 16, paddingBottom: 32, gap: 14 },
-  card: { backgroundColor: colors.card, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: colors.border },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
-  title: { fontSize: 17, fontWeight: '800', color: colors.text, flex: 1 },
-  subtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 6 },
-  sectionLabel: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 10 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusText: { fontSize: 14, color: colors.text, flexShrink: 1 },
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12 },
-  linkBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  linkBtnText: { fontSize: 13, fontWeight: '700', color: colors.primary },
-  label: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 },
-  input: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: colors.text,
-    marginBottom: 12,
+  flex: { flex: 1 },
+  pressed: { opacity: 0.8 },
+  card: {
+    backgroundColor: color.card,
+    borderWidth: 3,
+    borderColor: color.lavender,
+    borderRadius: radius.card,
+    padding: 20,
+    gap: 6,
   },
-  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, paddingVertical: 15, borderRadius: 14 },
-  btnDisabled: { backgroundColor: colors.primaryDark, opacity: 0.6 },
-  btnText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 16 },
-  hint: { fontSize: 12, color: colors.textSecondary, marginTop: 8, textAlign: 'center' },
-  notice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 4 },
-  noticeText: { fontSize: 15, fontWeight: '600', color: colors.statusSoft.DIBUKA.text, flexShrink: 1, textAlign: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  location: { flex: 1, fontFamily: font.regular, fontSize: 13, color: color.inkSoft },
+  badge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill },
+  badgeText: { fontFamily: font.semibold, fontSize: 11 },
+  title: { fontFamily: font.display, fontSize: 26, lineHeight: 32, color: color.ink },
+  body: { fontFamily: font.regular, fontSize: 14, lineHeight: 21, color: color.inkSoft },
+  label: { fontFamily: font.medium, fontSize: 14, color: color.ink },
+  hint: { fontFamily: font.regular, fontSize: 12, lineHeight: 18, color: color.muted, textAlign: 'center' },
+
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  circle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  circleSmall: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  distance: { fontFamily: font.display, fontSize: 28, lineHeight: 32 },
+  smallActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  outline: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    backgroundColor: color.card,
+  },
+  outlineText: { fontFamily: font.semibold, fontSize: 13, color: color.purpleInk },
+
+  input: {
+    minHeight: 48,
+    paddingHorizontal: 18,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    fontFamily: font.regular,
+    fontSize: 15,
+    color: color.ink,
+  },
+  error: { fontFamily: font.medium, fontSize: 13, lineHeight: 19, color: color.danger, backgroundColor: color.dangerSoft, borderRadius: radius.sm, padding: 12 },
+  primary: {
+    minHeight: 54,
+    marginTop: 8,
+    flexDirection: 'row',
+    gap: 8,
+    borderRadius: radius.pill,
+    backgroundColor: color.plum,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+  },
+  primaryDisabled: { backgroundColor: color.muted },
+  primaryText: { fontFamily: font.display, fontSize: 20, color: color.onDark },
+
+  backdrop: { flex: 1, justifyContent: 'center', padding: 28, backgroundColor: 'rgba(54,54,54,0.55)' },
+  dialog: {
+    backgroundColor: color.card,
+    borderRadius: radius.card,
+    borderWidth: 3,
+    borderColor: color.lavender,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  mascot: { width: 84, height: 88 },
+  dialogTitle: { fontFamily: font.display, fontSize: 26, color: color.ink },
+  timeBox: { alignSelf: 'stretch', alignItems: 'center', backgroundColor: color.successSoft, borderRadius: radius.input, paddingVertical: 12, marginVertical: 6 },
+  timeValue: { fontFamily: font.display, fontSize: 30, color: color.success },
 });

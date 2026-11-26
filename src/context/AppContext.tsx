@@ -37,6 +37,11 @@ type AppContextType = {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Menyelesaikan promise paling lambat setelah ms milidetik (yang lebih dulu menang).
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | void> {
+  return Promise.race([promise, new Promise<void>((resolve) => setTimeout(resolve, ms))]);
+}
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionsError, setSessionsError] = useState('');
@@ -150,7 +155,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setRole(null);
     setProfileReady(false);
     // Hapus token perangkat dulu (butuh user masih login), baru signOut.
-    (uid ? unregisterPushToken(uid) : Promise.resolve())
+    // Dibatasi 4 detik: di emulator/tanpa internet, getToken dan updateDoc bisa
+    // menunggu selamanya (updateDoc baru selesai setelah server menerima), sehingga
+    // signOut tidak pernah jalan dan layar tertahan di halaman memuat.
+    withTimeout(uid ? unregisterPushToken(uid) : Promise.resolve(), 4000)
       .catch(() => {})
       .finally(() =>
         logoutUser()
@@ -195,7 +203,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       nama: currentUser.nama,
       nim: currentUser.nim,
       waktu: new Date().toISOString(),
-      catatan
+      catatan,
+      jarakMeter: null,
     };
 
     setAttendances((prev: Attendance[]) => [...prev, record]);

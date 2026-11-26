@@ -1,42 +1,59 @@
-import { Ionicons } from '@expo/vector-icons';
+// src/screens/LabFormScreen.tsx
+// Form tambah / ubah laboratorium (redesign, khusus asisten). Mode ubah memakai ?id=<labId>.
+// Logika (preset lab Informatika, ambil lokasi GPS, tempel koordinat Google Maps, validasi) sama seperti sprint 3.
+import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Linking,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ReactNode, useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import { DecoratedScreen } from '../components/ui/DecoratedScreen';
 import { useApp } from '../context/AppContext';
 import { LAB_PRESETS, LabPreset } from '../data/labPresets';
 import { useLabs } from '../hooks/useLabs';
 import {
-    createLab,
-    getLabById,
-    labErrorMessage,
-    LabInput,
-    RADIUS_DEFAULT,
-    RADIUS_MAX,
-    RADIUS_MIN,
-    updateLab,
-    validateLab,
+  createLab,
+  getLabById,
+  labErrorMessage,
+  LabInput,
+  RADIUS_DEFAULT,
+  RADIUS_MAX,
+  RADIUS_MIN,
+  updateLab,
+  validateLab,
 } from '../services/labService';
 import {
-    getCurrentLocation,
-    locationErrorMessage,
-    LocationFailReason,
-    resolveActionLabel,
-    resolveLocationProblem,
+  getCurrentLocation,
+  locationErrorMessage,
+  LocationFailReason,
+  resolveActionLabel,
+  resolveLocationProblem,
 } from '../services/locationService';
-import { palette } from '../theme';
+import { color, font, radius as r } from '../theme/tokens';
 import { isValidCoordinate, parseCoordinateText } from '../utils/geo';
+
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      {!!hint && <Text style={styles.muted}>{hint}</Text>}
+      {children}
+    </View>
+  );
+}
+
+function Field({ label, ...props }: TextInputProps & { label: string }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        placeholderTextColor={color.placeholder}
+        selectionColor={color.purpleDeep}
+        style={[styles.input, props.multiline && styles.multiline]}
+        {...props}
+      />
+    </View>
+  );
+}
 
 const RADIUS_PRESETS = [25, 50, 100, 200];
 
@@ -220,270 +237,224 @@ export default function LabFormScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, styles.center]}>
-        <ActivityIndicator color={palette.champagne} />
-      </SafeAreaView>
+      <DecoratedScreen title="Ubah Lab" tone="asisten">
+        <ActivityIndicator color={color.plum} />
+      </DecoratedScreen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Pressable accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()} style={styles.back} hitSlop={8}>
-            <Ionicons name="arrow-back" size={20} color={palette.ivory} />
-          </Pressable>
-          <Text style={styles.eyebrow}>LOKASI LABORATORIUM</Text>
-          <Text style={styles.pageTitle}>{editingId ? 'Ubah laboratorium' : 'Tambah laboratorium'}</Text>
-          <Text style={styles.pageDescription}>
-            Nama laboratorium harus sama dengan nama ruang yang dipilih di jadwal.
-          </Text>
-
-          {!editingId && (
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Pilih laboratorium Informatika</Text>
-              <Text style={styles.muted}>
-                Nama, gedung, koordinat, dan radius terisi otomatis. Semuanya masih bisa diubah.
-              </Text>
-              <View style={styles.chips}>
-                {LAB_PRESETS.map((preset) => {
-                  const saved = existingNames.includes(preset.nama.trim().toLowerCase());
-                  const active = nama.trim().toLowerCase() === preset.nama.trim().toLowerCase();
-                  return (
-                    <Pressable
-                      key={preset.nama}
-                      accessibilityRole="button"
-                      accessibilityState={{ disabled: saved, selected: active }}
-                      disabled={saved}
-                      onPress={() => applyPreset(preset)}
-                      style={[styles.chip, active && styles.chipActive, saved && styles.chipSaved]}
-                    >
-                      <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                        {preset.nama}
-                        {saved ? ' · tersimpan' : preset.latitude === null ? ' · tanpa titik' : ''}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          <View style={styles.card}>
-            <Text style={styles.label}>Nama laboratorium</Text>
-            <TextInput
-              value={nama}
-              onChangeText={setNama}
-              placeholder="Lab C"
-              placeholderTextColor={palette.taupe}
-              style={styles.input}
-            />
-            {duplicate && <Text style={styles.hintError}>Nama ini sudah dipakai lab lain.</Text>}
-
-            <Text style={styles.label}>Gedung</Text>
-            <TextInput
-              value={gedung}
-              onChangeText={setGedung}
-              placeholder="Gedung Informatika"
-              placeholderTextColor={palette.taupe}
-              style={styles.input}
-            />
-
-            <Text style={styles.label}>Deskripsi (opsional)</Text>
-            <TextInput
-              value={deskripsi}
-              onChangeText={setDeskripsi}
-              placeholder="Lantai 2, sebelah ruang dosen"
-              placeholderTextColor={palette.taupe}
-              style={[styles.input, styles.multiline]}
-              multiline
-            />
+    <DecoratedScreen title={editingId ? 'Ubah Lab' : 'Tambah Lab'} tone="asisten">
+      {!editingId && (
+        <Section title="Lab Informatika" hint="Pilih salah satu: nama, gedung, koordinat, dan radius terisi otomatis dan masih bisa diubah.">
+          <View style={styles.chips}>
+            {LAB_PRESETS.map((preset) => {
+              const saved = existingNames.includes(preset.nama.trim().toLowerCase());
+              const active = nama.trim().toLowerCase() === preset.nama.trim().toLowerCase();
+              return (
+                <Pressable
+                  key={preset.nama}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: saved, selected: active }}
+                  disabled={saved}
+                  onPress={() => applyPreset(preset)}
+                  style={[styles.chip, active && styles.chipActive, saved && styles.chipSaved]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {preset.nama}
+                    {saved ? ' · tersimpan' : preset.latitude === null ? ' · tanpa titik' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
+        </Section>
+      )}
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Titik koordinat</Text>
-            <Text style={styles.muted}>
-              Berdiri di dalam lab lalu tekan Pakai lokasi saya sekarang. Bisa juga menyalin titik dari
-              Google Maps (tekan lama titik lab) lalu tempel di kolom Latitude; Longitude ikut terisi.
-            </Text>
+      <Section title="Identitas Lab" hint="Nama lab harus sama dengan nama ruang yang dipilih di jadwal.">
+        <Field label="Nama laboratorium" value={nama} onChangeText={setNama} placeholder="Lab C" />
+        {duplicate && <Text style={styles.hintError}>Nama ini sudah dipakai lab lain.</Text>}
+        <Field label="Gedung" value={gedung} onChangeText={setGedung} placeholder="Gedung E FSM" />
+        <Field label="Deskripsi (opsional)" value={deskripsi} onChangeText={setDeskripsi} placeholder="Lantai 2, sebelah ruang dosen" multiline />
+      </Section>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={fillFromMyLocation}
-              disabled={locating}
-              style={({ pressed }) => [styles.locationButton, (pressed || locating) && styles.pressed]}
-            >
-              {locating ? (
-                <ActivityIndicator color={palette.ivory} />
-              ) : (
-                <Ionicons name="locate-outline" size={18} color={palette.ivory} />
-              )}
-              <Text style={styles.locationButtonText}>
-                {locating ? 'Mencari lokasi...' : 'Pakai lokasi saya sekarang'}
-              </Text>
-            </Pressable>
+      <Section
+        title="Titik Koordinat"
+        hint="Berdiri di dalam lab lalu tekan Pakai lokasi saya. Bisa juga salin titik dari Google Maps (tekan lama titik lab) lalu tempel di kolom Latitude; Longitude ikut terisi."
+      >
+        <Pressable
+          accessibilityRole="button"
+          onPress={fillFromMyLocation}
+          disabled={locating}
+          style={({ pressed }) => [styles.primary, styles.locationButton, (pressed || locating) && styles.pressed]}
+        >
+          {locating ? <ActivityIndicator color={color.onDark} /> : <Feather name="crosshair" size={18} color={color.onDark} />}
+          <Text style={styles.primarySmallText}>{locating ? 'Mencari lokasi...' : 'Pakai lokasi saya'}</Text>
+        </Pressable>
 
-            {accuracy !== null && (
-              <Text style={accuracy > 30 ? styles.hintWarning : styles.hintOk}>
-                Lokasi didapat dengan akurasi ±{Math.round(accuracy)} m.
-                {accuracy > 30 ? ' Kurang akurat, coba dekat jendela lalu ambil ulang.' : ''}
-              </Text>
+        {accuracy !== null && (
+          <Text style={accuracy > 30 ? styles.hintWarning : styles.hintOk}>
+            Akurasi ±{Math.round(accuracy)} m.{accuracy > 30 ? ' Kurang akurat, coba dekat jendela lalu ambil ulang.' : ''}
+          </Text>
+        )}
+
+        {locationFail && (
+          <View style={styles.errorBox} accessibilityRole="alert">
+            <Text style={styles.errorText}>{locationErrorMessage(locationFail)}</Text>
+            {resolveActionLabel(locationFail) && (
+              <Pressable accessibilityRole="button" onPress={handleLocationProblem} hitSlop={6}>
+                <Text style={styles.errorAction}>{resolveActionLabel(locationFail)}</Text>
+              </Pressable>
             )}
+          </View>
+        )}
 
-            {locationFail && (
-              <View style={styles.locationError} accessibilityRole="alert">
-                <Text style={styles.locationErrorText}>{locationErrorMessage(locationFail)}</Text>
-                {resolveActionLabel(locationFail) && (
-                  <Pressable accessibilityRole="button" onPress={handleLocationProblem} hitSlop={6}>
-                    <Text style={styles.locationErrorAction}>{resolveActionLabel(locationFail)}</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
-
-            <Text style={styles.label}>Latitude</Text>
-            <TextInput
+        <View style={styles.row}>
+          <View style={styles.flex}>
+            <Field
+              label="Latitude"
               value={latitude}
               onChangeText={onChangeLatitude}
-              placeholder="-6.973012"
-              placeholderTextColor={palette.taupe}
+              placeholder="-7.048303"
               keyboardType="numbers-and-punctuation"
               autoCorrect={false}
-              style={styles.input}
             />
-
-            <Text style={styles.label}>Longitude</Text>
-            <TextInput
+          </View>
+          <View style={styles.flex}>
+            <Field
+              label="Longitude"
               value={longitude}
               onChangeText={setLongitude}
-              placeholder="107.630415"
-              placeholderTextColor={palette.taupe}
+              placeholder="110.440741"
               keyboardType="numbers-and-punctuation"
               autoCorrect={false}
-              style={styles.input}
-            />
-
-            {latitude !== '' && longitude !== '' && !coordinateOk && (
-              <Text style={styles.hintError}>
-                Koordinat tidak valid. Latitude -90 s.d. 90, longitude -180 s.d. 180.
-              </Text>
-            )}
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={openInGoogleMaps}
-              disabled={!coordinateOk}
-              style={({ pressed }) => [styles.secondaryButton, (!coordinateOk || pressed) && styles.pressed]}
-            >
-              <Ionicons name="map-outline" size={16} color={palette.navy} />
-              <Text style={styles.secondaryText}>Cek titik di Google Maps</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Radius presensi</Text>
-            <Text style={styles.muted}>
-              Praktikan hanya dapat presensi jika berada dalam radius ini dari titik lab
-              ({RADIUS_MIN}–{RADIUS_MAX} meter). GPS di dalam gedung bisa meleset 20–50 m.
-            </Text>
-
-            <View style={styles.chips}>
-              {RADIUS_PRESETS.map((value) => {
-                const active = toNumber(radius) === value;
-                return (
-                  <Pressable
-                    key={value}
-                    accessibilityRole="button"
-                    onPress={() => setRadius(String(value))}
-                    style={[styles.chip, active && styles.chipActive]}
-                  >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{value} m</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <Text style={styles.label}>Radius (meter)</Text>
-            <TextInput
-              value={radius}
-              onChangeText={setRadius}
-              keyboardType="number-pad"
-              style={styles.input}
             />
           </View>
+        </View>
 
-          {!!message && <Text style={styles.error} accessibilityRole="alert">{message}</Text>}
+        {latitude !== '' && longitude !== '' && !coordinateOk && (
+          <Text style={styles.hintError}>Koordinat tidak valid. Latitude -90 s.d. 90, longitude -180 s.d. 180.</Text>
+        )}
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={save}
-            disabled={saving}
-            style={({ pressed }) => [styles.primaryButton, (pressed || saving) && styles.pressed]}
-          >
-            <Text style={styles.primaryText}>
-              {saving ? 'Menyimpan...' : editingId ? 'Simpan perubahan' : 'Simpan laboratorium'}
-            </Text>
-          </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        <Pressable
+          accessibilityRole="button"
+          onPress={openInGoogleMaps}
+          disabled={!coordinateOk}
+          style={({ pressed }) => [styles.outline, (!coordinateOk || pressed) && styles.pressed]}
+        >
+          <Feather name="external-link" size={16} color={color.purpleInk} />
+          <Text style={styles.outlineText}>Cek titik di Google Maps</Text>
+        </Pressable>
+      </Section>
+
+      <Section
+        title="Radius Presensi"
+        hint={`Praktikan hanya bisa presensi dalam radius ini dari titik lab (${RADIUS_MIN}-${RADIUS_MAX} m). GPS di dalam gedung bisa meleset 20-50 m.`}
+      >
+        <View style={styles.chips}>
+          {RADIUS_PRESETS.map((value) => {
+            const active = toNumber(radius) === value;
+            return (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => setRadius(String(value))}
+                style={[styles.chip, active && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{value} m</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Field label="Radius (meter)" value={radius} onChangeText={setRadius} keyboardType="number-pad" />
+      </Section>
+
+      {!!message && <Text style={styles.errorBanner} accessibilityRole="alert">{message}</Text>}
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ disabled: saving }}
+        onPress={save}
+        disabled={saving}
+        style={({ pressed }) => [styles.primary, (pressed || saving) && styles.pressed]}
+      >
+        <Text style={styles.primaryText}>{saving ? 'Menyimpan...' : 'Simpan'}</Text>
+      </Pressable>
+    </DecoratedScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.navy },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40, gap: 14 },
-  back: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.sapphire,
+  flex: { flex: 1 },
+  row: { flexDirection: 'row', gap: 10 },
+  pressed: { opacity: 0.75 },
+  card: {
+    backgroundColor: color.card,
+    borderWidth: 3,
+    borderColor: color.lavender,
+    borderRadius: r.card,
+    padding: 20,
+    gap: 10,
   },
-  eyebrow: { color: palette.taupe, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
-  pageTitle: { color: palette.ivory, fontSize: 28, fontWeight: '700', marginTop: -8 },
-  pageDescription: { color: palette.champagne, fontSize: 13, lineHeight: 20, marginTop: -6 },
-  card: { padding: 16, gap: 8, backgroundColor: palette.ivory, borderRadius: 18 },
-  cardTitle: { color: palette.navy, fontSize: 16, fontWeight: '700' },
-  muted: { color: palette.sapphire, fontSize: 12, lineHeight: 18 },
-  label: { color: palette.navy, fontSize: 12, fontWeight: '700', marginTop: 4 },
+  cardTitle: { fontFamily: font.display, fontSize: 20, color: color.ink },
+  muted: { fontFamily: font.regular, fontSize: 13, lineHeight: 19, color: color.muted },
+  field: { gap: 6 },
+  label: { fontFamily: font.medium, fontSize: 13, color: color.ink },
   input: {
-    minHeight: 50, borderWidth: 1, borderColor: palette.taupe, borderRadius: 13,
-    backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingVertical: 10,
-    color: palette.navy, fontSize: 14,
+    minHeight: 48,
+    paddingHorizontal: 18,
+    borderRadius: r.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    fontFamily: font.regular,
+    fontSize: 15,
+    color: color.ink,
   },
-  multiline: { minHeight: 76, textAlignVertical: 'top' },
-  hintError: { color: '#713D46', fontSize: 11, lineHeight: 16 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  multiline: { minHeight: 80, borderRadius: 22, paddingTop: 12, textAlignVertical: 'top' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    borderWidth: 1, borderColor: palette.taupe, backgroundColor: '#FFFFFF',
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: r.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: color.lavender,
+    backgroundColor: color.card,
   },
-  chipActive: { backgroundColor: palette.navy, borderColor: palette.navy },
-  chipSaved: { opacity: 0.45 },
-  chipText: { color: palette.navy, fontSize: 12, fontWeight: '700' },
-  chipTextActive: { color: palette.ivory },
-  locationButton: {
-    minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 13, backgroundColor: palette.navy, marginTop: 4,
+  chipActive: { backgroundColor: color.plum, borderColor: color.plum },
+  chipSaved: { opacity: 0.5 },
+  chipText: { fontFamily: font.semibold, fontSize: 13, color: color.purpleInk },
+  chipTextActive: { color: color.onDark },
+  hintError: { fontFamily: font.medium, fontSize: 12, color: color.danger },
+  hintWarning: { fontFamily: font.medium, fontSize: 12, color: color.warning },
+  hintOk: { fontFamily: font.medium, fontSize: 12, color: color.success },
+  errorBox: { backgroundColor: color.dangerSoft, borderRadius: r.sm, padding: 12, gap: 6 },
+  errorText: { fontFamily: font.medium, fontSize: 13, lineHeight: 19, color: color.danger },
+  errorAction: { fontFamily: font.semibold, fontSize: 13, color: color.danger, textDecorationLine: 'underline' },
+  errorBanner: { fontFamily: font.medium, fontSize: 13, lineHeight: 19, color: color.danger, backgroundColor: color.dangerSoft, borderRadius: r.sm, padding: 12 },
+  outline: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: r.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
   },
-  locationButtonText: { color: palette.ivory, fontSize: 13, fontWeight: '700' },
-  hintOk: { color: '#355C49', fontSize: 11, lineHeight: 16 },
-  hintWarning: { color: '#6B5320', fontSize: 11, lineHeight: 16 },
-  locationError: { backgroundColor: '#F0E7E5', borderRadius: 10, padding: 10, gap: 6 },
-  locationErrorText: { color: '#713D46', fontSize: 12, lineHeight: 18 },
-  locationErrorAction: { color: '#713D46', fontSize: 12, fontWeight: '700', textDecorationLine: 'underline' },
-  secondaryButton: {
-    minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    borderRadius: 13, backgroundColor: palette.champagne, borderWidth: 1, borderColor: palette.taupe, marginTop: 6,
+  outlineText: { fontFamily: font.semibold, fontSize: 13, color: color.purpleInk },
+  primary: {
+    minHeight: 54,
+    flexDirection: 'row',
+    gap: 8,
+    borderRadius: r.pill,
+    backgroundColor: color.plum,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  secondaryText: { color: palette.navy, fontSize: 13, fontWeight: '700' },
-  primaryButton: {
-    minHeight: 50, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.champagne,
-  },
-  primaryText: { color: palette.navy, fontSize: 14, fontWeight: '700' },
-  pressed: { opacity: 0.6 },
-  error: {
-    color: '#713D46', backgroundColor: '#F0E7E5', borderRadius: 10, padding: 10,
-    fontSize: 12, lineHeight: 18,
-  },
+  locationButton: { minHeight: 48 },
+  primaryText: { fontFamily: font.display, fontSize: 20, color: color.onDark },
+  primarySmallText: { fontFamily: font.semibold, fontSize: 14, color: color.onDark },
 });

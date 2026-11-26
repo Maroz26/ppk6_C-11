@@ -1,12 +1,16 @@
 import { StyleSheet } from 'react-native';
 
-// Palet yang disepakati kelompok (sama dengan layar izin dan kelola sesi).
+// REDESIGN: palet lama (navy) sudah diganti. Nama kuncinya dipertahankan sementara
+// supaya halaman yang belum didesain ulang tetap jalan, tapi nilainya memakai
+// warna baru dari src/theme/tokens.ts. Halaman baru jangan memakai `palette`.
+import { color } from './theme/tokens';
+
 export const palette = {
-  navy: '#112250',
-  sapphire: '#3B507D',
-  taupe: '#BEB7A7',
-  champagne: '#E7E2CE',
-  ivory: '#F5F4F0',
+  navy: '#6E4F80',            // dulu latar gelap & teks utama -> ungu tua
+  sapphire: color.purpleDeep, // dulu teks sekunder
+  taupe: color.lavender,      // dulu garis tepi & label kecil
+  champagne: '#EBD5F7',       // dulu latar terang / teks di atas latar gelap
+  ivory: color.surface,       // dulu kartu & teks terang
 };
 
 // Nama lama dipertahankan supaya halaman yang sudah ada tidak perlu diubah.

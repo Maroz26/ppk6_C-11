@@ -1,6 +1,9 @@
+import { LilitaOne_400Regular } from '@expo-google-fonts/lilita-one';
 import {
   Poppins_400Regular,
+  Poppins_500Medium,
   Poppins_600SemiBold,
+  Poppins_600SemiBold_Italic,
   Poppins_700Bold,
   useFonts
 } from '@expo-google-fonts/poppins';
@@ -42,15 +45,14 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
       <Stack.Protected guard={isLoggedIn}>
         <Stack.Screen name="index" />
         <Stack.Screen name="token-storage" options={{ headerShown: true, title: 'Uji Access Token' }} />
-        <Stack.Screen name="identitas" />
         <Stack.Screen name="asisten" />
         <Stack.Screen name="praktikan" />
         <Stack.Screen name="sesi/form" />
         <Stack.Screen name="lab/form" />
         <Stack.Screen name="peta" />
-        <Stack.Screen name="sesi/[id]" options={{ headerShown: true, title: 'Detail Sesi' }} />
-        <Stack.Screen name="kelola/[id]" options={{ headerShown: true, title: 'Kelola Sesi' }} />
-        <Stack.Screen name="rekap/[id]" options={{ headerShown: true, title: 'Rekap Kehadiran' }} />
+        <Stack.Screen name="profil" />
+        <Stack.Screen name="notifikasi" />
+        <Stack.Screen name="sesi/[id]" />
         <Stack.Screen name="testAi" options={{ headerShown: true, title: 'Analisis AI' }} />
       </Stack.Protected>
     </Stack>
@@ -58,9 +60,13 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
 }
 
 export default function RootLayout() {
+  // Font sistem desain baru (lihat src/theme/tokens.ts).
   const [loaded, error] = useFonts({
+    LilitaOne_400Regular,
     Poppins_400Regular,
+    Poppins_500Medium,
     Poppins_600SemiBold,
+    Poppins_600SemiBold_Italic,
     Poppins_700Bold,
   });
 

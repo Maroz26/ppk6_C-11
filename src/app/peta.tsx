@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ComponentType, useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { palette } from '../theme';
+import { color, font, radius } from '../theme/tokens';
 
 function loadMapScreen(): ComponentType | null {
   try {
@@ -21,19 +21,19 @@ export default function PetaRoute() {
   if (MapScreen) return <MapScreen />;
 
   return (
-    <View style={{ flex: 1, backgroundColor: palette.navy, justifyContent: 'center', padding: 24 }}>
-      <View style={{ backgroundColor: palette.ivory, borderRadius: 20, padding: 20, gap: 10 }}>
-        <Ionicons name="map-outline" size={28} color={palette.navy} />
-        <Text style={{ color: palette.navy, fontSize: 18, fontWeight: '700' }}>Peta belum tersedia</Text>
-        <Text style={{ color: palette.sapphire, fontSize: 13, lineHeight: 19 }}>
+    <View style={{ flex: 1, backgroundColor: color.lavender, justifyContent: 'center', padding: 24 }}>
+      <View style={{ backgroundColor: color.card, borderRadius: radius.card, padding: 20, gap: 10 }}>
+        <Ionicons name="map-outline" size={28} color={color.purpleDeep} />
+        <Text style={{ fontFamily: font.display, color: color.ink, fontSize: 22 }}>Peta belum tersedia</Text>
+        <Text style={{ fontFamily: font.regular, color: color.inkSoft, fontSize: 13, lineHeight: 19 }}>
           Versi aplikasi ini belum mendukung peta. Pasang dev build terbaru, lalu buka lagi halaman ini.
         </Text>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.back()}
-          style={{ minHeight: 46, borderRadius: 13, backgroundColor: palette.navy, alignItems: 'center', justifyContent: 'center' }}
+          style={{ minHeight: 50, borderRadius: radius.pill, backgroundColor: color.plum, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Text style={{ color: palette.ivory, fontWeight: '700' }}>Kembali</Text>
+          <Text style={{ fontFamily: font.display, color: color.onDark, fontSize: 18 }}>Kembali</Text>
         </Pressable>
       </View>
     </View>
