@@ -6,8 +6,7 @@
 // ===== Warna =====
 export const color = {
   // Merek
-  orange: '#DE9B6E',        // kartu sorotan (hero), navigasi bawah, latar sekunder
-  orangeDark: '#B8754A',    // teks/ikon di atas permukaan terang yang butuh nuansa oranye
+  orange: '#D2A07F',        // Figma #DE9B6E, saturasi diturunkan agar di layar HP tidak terlalu menyala  orangeDark: '#B8754A',    // teks/ikon di atas permukaan terang yang butuh nuansa oranye
   lavender: '#DEAEF8',      // kotak menu, garis tepi kartu, latar halaman auth
   lavenderSoft: '#F3E3FB',  // latar lembut (chip tidak aktif, sorotan tipis)
   purple: '#A580BA',        // aksen dekoratif (garis pemisah, ilustrasi)
@@ -41,6 +40,51 @@ export const color = {
 
   // Aksen dari ilustrasi maskot
   lime: '#D4EC8C',
+  mint: '#CDF2E8',          // Figma #CAFFF2, saturasi diturunkan agar di layar HP tidak terlalu menyala. Tema asisten: kartu sorotan, kotak menu, tombol kartu
+} as const;
+
+// ===== Tema per peran =====
+// Praktikan: latar putih, kartu sorotan oranye, aksen lavender (Figma: Home Screen Praktikan).
+// Asisten: latar oranye, kartu sorotan mint, navigasi lavender (Figma: Home Screen Asprak).
+export type RoleTone = 'praktikan' | 'asisten';
+
+export const roleTheme = {
+  praktikan: {
+    page: color.background,
+    greeting: color.purpleDeep,
+    bell: color.purpleDeep,
+    heroBg: color.orange,
+    heroText: color.onDark,
+    tileBg: color.lavender,
+    tileLabel: color.ink,
+    iconTint: undefined as string | undefined, // ikon PNG sudah berwarna ungu
+    divider: color.purple,
+    sectionTitle: color.ink,
+    cardBorder: color.lavender,
+    buttonBg: color.purpleDeep,
+    buttonText: color.onDark,
+    navBg: color.orange,
+    navIcon: color.purpleInk,
+    navIconActive: color.onDark,
+  },
+  asisten: {
+    page: color.orange,
+    greeting: color.mint,
+    bell: color.mint,
+    heroBg: color.mint,
+    heroText: color.ink,
+    tileBg: color.mint,
+    tileLabel: color.ink,
+    iconTint: color.ink as string | undefined, // ikon PNG diwarnai gelap seperti di Figma
+    divider: color.mint,
+    sectionTitle: color.ink,
+    cardBorder: color.mint,
+    buttonBg: color.mint,
+    buttonText: color.ink,
+    navBg: color.lavender,
+    navIcon: color.purpleInk,
+    navIconActive: color.ink,
+  },
 } as const;
 
 // Warna status sesi, dipakai badge di seluruh aplikasi.

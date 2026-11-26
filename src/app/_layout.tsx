@@ -51,6 +51,7 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="sesi/form" />
         <Stack.Screen name="lab/form" />
         <Stack.Screen name="peta" />
+        <Stack.Screen name="profil" />
         <Stack.Screen name="sesi/[id]" options={{ headerShown: true, title: 'Detail Sesi' }} />
         <Stack.Screen name="kelola/[id]" options={{ headerShown: true, title: 'Kelola Sesi' }} />
         <Stack.Screen name="rekap/[id]" options={{ headerShown: true, title: 'Rekap Kehadiran' }} />
