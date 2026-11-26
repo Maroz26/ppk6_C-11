@@ -6,14 +6,15 @@
 // ===== Warna =====
 export const color = {
   // Merek
-  orange: '#DE9B6E',        // kartu sorotan (hero), navigasi bawah, latar sekunder
+  orange: '#D2A07F',        // Figma #DE9B6E, saturasi diturunkan agar di layar HP tidak terlalu menyala
   orangeDark: '#B8754A',    // teks/ikon di atas permukaan terang yang butuh nuansa oranye
   brown: '#A76438',         // bukit di halaman Jadwal (Figma: jadwal-prak "Group 15")
   lavender: '#DEAEF8',      // kotak menu, garis tepi kartu, latar halaman auth
   lavenderSoft: '#F3E3FB',  // latar lembut (chip tidak aktif, sorotan tipis)
   purple: '#A580BA',        // aksen dekoratif (garis pemisah, ilustrasi)
   purpleDeep: '#816491',    // teks sapaan, ikon, tombol utama (kontras putih 5:1)
-  purpleInk: '#5E3F70',     // teks di atas lavender
+  purpleInk: '#5E3F70',     // teks di atas lavender, garis kolom isian
+  plum: '#684A79',          // tombol besar (Simpan, Tambah Sesi), tanggal terpilih
 
   // Permukaan
   background: '#FFFFFF',    // latar halaman
@@ -24,6 +25,7 @@ export const color = {
   ink: '#363636',           // judul
   inkSoft: '#3B373C',       // isi
   muted: '#7A7380',         // keterangan
+  placeholder: '#8E8796',   // teks contoh di kolom isian
   onDark: '#FFFFFF',        // teks di atas oranye/ungu
 
   // Garis
@@ -47,7 +49,7 @@ export const color = {
   dayOtherText: '#8F8A96',   // Figma #B6B3BA, digelapkan sedikit agar terbaca
   sundayBg: '#EEFCF6',
   sundayText: '#2F8F88',     // Figma #4CAFA8, digelapkan sedikit agar terbaca
-  daySelected: '#684A79',
+  daySelected: '#684A79',   // sama dengan plum
 
   // Aksen dari ilustrasi maskot
   lime: '#D4EC8C',

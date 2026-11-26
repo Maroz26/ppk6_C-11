@@ -1,4 +1,3 @@
-// Sementara memakai halaman daftar sesi lama sampai halaman Kelola Sesi baru selesai.
-import ScheduleScreen from '../../screens/ScheduleScreen';
+import KelolaSesiScreen from '../../screens/KelolaSesiScreen';
 
-export default ScheduleScreen;
+export default KelolaSesiScreen;

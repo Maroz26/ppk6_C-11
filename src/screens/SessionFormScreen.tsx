@@ -1,4 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
+// src/screens/SessionFormScreen.tsx
+// Form tambah / ubah sesi (redesign, Figma: "Detil Sesi / Add Sesi").
+// Tanpa id: tambah sesi baru. Dengan ?id=...: ubah sesi, dan pembuat sesi bisa menghapusnya.
+// Logika simpan, validasi, dan pilihan lab sama seperti sprint 3; yang berubah tampilannya.
+import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import {
@@ -10,70 +14,81 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BackHeader } from '../components/ui/BackHeader';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Hills } from '../components/ui/Hills';
 import { useApp } from '../context/AppContext';
 import { useLabs } from '../hooks/useLabs';
 import { findLabForSession } from '../services/labService';
 import {
   createSession,
+  deleteSession,
   listenPraktikanList,
   scheduleErrorMessage,
   SessionInput,
   updateSession,
   validateSession,
 } from '../services/scheduleService';
-import { palette } from '../theme';
+import { color, font, radius } from '../theme/tokens';
 import { Lab, User } from '../types';
+import { calendarWeeks, isSameDay, namaBulanTahun, toIsoDate } from '../utils/dateId';
 import { formatTanggal } from '../utils/formatTime';
 
-// Ubah daftar ini sesuai praktikum di kampusmu.
-// Daftar ruang diambil dari koleksi labs (dikelola di halaman Kelola laboratorium).
+// Ubah daftar ini sesuai praktikum di kampusmu. Pilihan lain bisa diketik sendiri.
 const PRAKTIKUM_OPTIONS = ['Pemrograman Web', 'Basis Data'];
 const KELAS_OPTIONS = ['A', 'B', 'C', 'D'];
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
-const MONTHS = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-];
-const DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
-type Picker = 'praktikum' | 'ruang' | 'tanggal' | 'mulai' | 'selesai' | null;
+// Hiasan bukit/awan dimulai di y 75 pada frame Figma 402.
+const FIGMA_WIDTH = 402;
+const DECOR_TOP = 75;
 
-function toISO(year: number, month: number, day: number) {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
+type Picker = 'praktikum' | 'kelas' | 'ruang' | 'tanggal' | 'mulai' | 'selesai' | null;
 
 function parseDate(value: string) {
-  const date = value ? new Date(value) : new Date();
+  const date = value ? new Date(`${value}T00:00:00`) : new Date();
   return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
-// Kolom yang dibuka dengan ketukan (dropdown, kalender, jam).
-function SelectField({ label, value, placeholder, icon, onPress }: {
-  label: string;
+// ===== Komponen kecil =====
+
+// Kolom berbentuk pil yang dibuka dengan ketukan (dropdown, kalender, jam).
+function PillSelect({ label, value, placeholder, icon, onPress, compact }: {
+  label: string; // untuk pembaca layar
   value: string;
   placeholder: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Feather.glyphMap;
   onPress: () => void;
+  compact?: boolean;
 }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${label}: ${value || placeholder}`}
-        onPress={onPress}
-        style={({ pressed }) => [styles.select, pressed && styles.pressed]}
-      >
-        <Text style={[styles.selectText, !value && styles.placeholder]} numberOfLines={1}>
-          {value || placeholder}
-        </Text>
-        <Ionicons name={icon} size={18} color={palette.navy} />
-      </Pressable>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${value || 'belum diisi'}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.pill, compact && styles.pillCompact, pressed && styles.pressed]}
+    >
+      <Text style={[styles.pillText, !value && styles.placeholder]} numberOfLines={1}>
+        {value || placeholder}
+      </Text>
+      {icon && <Feather name={icon} size={18} color={color.purpleInk} />}
+    </Pressable>
+  );
+}
+
+// Baris "Label  [kolom]" seperti di Figma.
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.flex}>{children}</View>
     </View>
   );
 }
@@ -85,15 +100,16 @@ function Sheet({ visible, title, onClose, children }: {
   onClose: () => void;
   children: ReactNode;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.backdrop} behavior="padding">
         <Pressable style={styles.flex} onPress={onClose} accessibilityLabel="Tutup" />
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 24 }]}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{title}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Tutup" onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={18} color={palette.navy} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Tutup" onPress={onClose} style={styles.roundButton}>
+              <Feather name="x" size={18} color={color.purpleInk} />
             </Pressable>
           </View>
           {children}
@@ -126,22 +142,23 @@ function OptionSheet({ visible, title, options, value, onSelect, onClose }: {
           <Pressable
             key={option}
             accessibilityRole="button"
+            accessibilityState={{ selected: option === value }}
             onPress={() => choose(option)}
             style={({ pressed }) => [styles.sheetOption, pressed && styles.pressed]}
           >
             <Text style={styles.optionName}>{option}</Text>
-            {option === value && <Ionicons name="checkmark" size={18} color={palette.navy} />}
+            {option === value && <Feather name="check" size={18} color={color.plum} />}
           </Pressable>
         ))}
       </ScrollView>
-      <Text style={[styles.fieldLabel, styles.customLabel]}>Lainnya</Text>
-      <View style={styles.row}>
+      <Text style={styles.sheetLabel}>Lainnya</Text>
+      <View style={styles.inlineRow}>
         <TextInput
           accessibilityLabel="Ketik pilihan lain"
           placeholder="Ketik sendiri"
-          placeholderTextColor="#7C879B"
-          selectionColor={palette.sapphire}
-          style={[styles.input, styles.flex]}
+          placeholderTextColor={color.placeholder}
+          selectionColor={color.purpleDeep}
+          style={[styles.textInput, styles.flex]}
           value={custom}
           onChangeText={setCustom}
         />
@@ -174,21 +191,20 @@ function LabSheet({ visible, labs, loading, error, value, onSelect, onClose }: {
   }
 
   return (
-    <Sheet visible={visible} title="Pilih ruang" onClose={onClose}>
+    <Sheet visible={visible} title="Pilih ruangan" onClose={onClose}>
       {loading ? (
         <Text style={styles.helper}>Memuat daftar laboratorium...</Text>
       ) : error ? (
         <Text style={styles.error} accessibilityRole="alert">{error}</Text>
       ) : labs.length === 0 ? (
-        <Text style={styles.helper}>
-          Belum ada laboratorium. Tambahkan lokasi laboratorium terlebih dahulu.
-        </Text>
+        <Text style={styles.helper}>Belum ada laboratorium. Tambahkan lokasi laboratorium terlebih dahulu.</Text>
       ) : (
         <ScrollView style={styles.sheetList} keyboardShouldPersistTaps="handled">
           {labs.map((lab) => (
             <Pressable
               key={lab.id}
               accessibilityRole="button"
+              accessibilityState={{ selected: lab.id === value }}
               onPress={() => {
                 onSelect(lab);
                 onClose();
@@ -197,9 +213,9 @@ function LabSheet({ visible, labs, loading, error, value, onSelect, onClose }: {
             >
               <View style={styles.flex}>
                 <Text style={styles.optionName}>{lab.nama}</Text>
-                <Text style={styles.optionNim}>{lab.gedung} · radius {lab.radius} m</Text>
+                <Text style={styles.optionSub}>{lab.gedung} · radius {lab.radius} m</Text>
               </View>
-              {lab.id === value && <Ionicons name="checkmark" size={18} color={palette.navy} />}
+              {lab.id === value && <Feather name="check" size={18} color={color.plum} />}
             </Pressable>
           ))}
         </ScrollView>
@@ -207,9 +223,9 @@ function LabSheet({ visible, labs, loading, error, value, onSelect, onClose }: {
       <Pressable
         accessibilityRole="button"
         onPress={openLabManager}
-        style={({ pressed }) => [styles.sheetConfirm, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.sheetSecondary, pressed && styles.pressed]}
       >
-        <Text style={styles.sheetConfirmText}>Kelola laboratorium</Text>
+        <Text style={styles.sheetSecondaryText}>Kelola laboratorium</Text>
       </Pressable>
     </Sheet>
   );
@@ -221,79 +237,80 @@ function CalendarSheet({ visible, value, onSelect, onClose }: {
   onSelect: (value: string) => void;
   onClose: () => void;
 }) {
-  const [year, setYear] = useState(() => parseDate(value).getFullYear());
-  const [month, setMonth] = useState(() => parseDate(value).getMonth());
+  const [month, setMonth] = useState(() => parseDate(value));
 
   // Setiap dibuka, kalender menampilkan bulan dari tanggal yang sedang dipilih.
   useEffect(() => {
-    if (!visible) return;
-    const date = parseDate(value);
-    setYear(date.getFullYear());
-    setMonth(date.getMonth());
+    if (visible) setMonth(parseDate(value));
   }, [visible, value]);
 
-  function move(delta: number) {
-    const next = month + delta;
-    if (next < 0) {
-      setMonth(11);
-      setYear(year - 1);
-    } else if (next > 11) {
-      setMonth(0);
-      setYear(year + 1);
-    } else {
-      setMonth(next);
-    }
-  }
-
-  const firstDay = new Date(year, month, 1).getDay();
-  const totalDays = new Date(year, month + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array.from({ length: firstDay }, () => null),
-    ...Array.from({ length: totalDays }, (_, i) => i + 1),
-  ];
-  const now = new Date();
-  const today = toISO(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = new Date();
+  const selected = value ? parseDate(value) : null;
 
   return (
     <Sheet visible={visible} title="Pilih tanggal" onClose={onClose}>
       <View style={styles.calendarHeader}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Bulan sebelumnya" onPress={() => move(-1)} style={styles.closeButton}>
-          <Ionicons name="chevron-back" size={18} color={palette.navy} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Bulan sebelumnya"
+          onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+          style={styles.roundButton}
+        >
+          <Feather name="chevron-left" size={18} color={color.purpleInk} />
         </Pressable>
-        <Text style={styles.calendarTitle}>{MONTHS[month]} {year}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Bulan berikutnya" onPress={() => move(1)} style={styles.closeButton}>
-          <Ionicons name="chevron-forward" size={18} color={palette.navy} />
+        <Text style={styles.calendarTitle}>{namaBulanTahun(month)}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Bulan berikutnya"
+          onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+          style={styles.roundButton}
+        >
+          <Feather name="chevron-right" size={18} color={color.purpleInk} />
         </Pressable>
       </View>
-      <View style={styles.calendarGrid}>
-        {DAYS.map((day) => (
-          <View key={day} style={styles.calendarCell}>
-            <Text style={styles.calendarDayName}>{day}</Text>
-          </View>
+      <View style={styles.calendarRow}>
+        {WEEKDAYS.map((d) => (
+          <Text key={d} style={styles.calendarWeekday}>{d}</Text>
         ))}
-        {cells.map((day, index) => {
-          if (day === null) return <View key={`kosong-${index}`} style={styles.calendarCell} />;
-          const iso = toISO(year, month, day);
-          const selected = iso === value;
-          const isToday = iso === today;
-          return (
-            <View key={iso} style={styles.calendarCell}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={formatTanggal(iso)}
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  onSelect(iso);
-                  onClose();
-                }}
-                style={[styles.calendarDay, isToday && styles.calendarToday, selected && styles.calendarSelected]}
-              >
-                <Text style={[styles.calendarDayText, selected && styles.calendarSelectedText]}>{day}</Text>
-              </Pressable>
-            </View>
-          );
-        })}
       </View>
+      {calendarWeeks(month).map((week) => (
+        <View key={week[0].toISOString()} style={styles.calendarRow}>
+          {week.map((date) => {
+            const inMonth = date.getMonth() === month.getMonth();
+            const isSelected = !!selected && isSameDay(date, selected);
+            const isToday = isSameDay(date, today);
+            const iso = toIsoDate(date);
+            return (
+              <View key={iso} style={styles.calendarCell}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={formatTanggal(iso)}
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => {
+                    onSelect(iso);
+                    onClose();
+                  }}
+                  style={[
+                    styles.calendarDay,
+                    isToday && styles.calendarToday,
+                    isSelected && styles.calendarSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.calendarDayText,
+                      !inMonth && styles.calendarOther,
+                      isSelected && styles.calendarSelectedText,
+                    ]}
+                  >
+                    {date.getDate()}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+      ))}
     </Sheet>
   );
 }
@@ -326,6 +343,7 @@ function TimeSheet({ visible, title, value, onSelect, onClose }: {
               key={item}
               accessibilityRole="button"
               accessibilityState={{ selected }}
+              accessibilityLabel={`${label} ${item}`}
               onPress={() => onPick(item)}
               style={[styles.timeItem, selected && styles.timeItemSelected]}
             >
@@ -339,7 +357,7 @@ function TimeSheet({ visible, title, value, onSelect, onClose }: {
 
   return (
     <Sheet visible={visible} title={title} onClose={onClose}>
-      <View style={styles.row}>
+      <View style={styles.inlineRow}>
         {column(HOURS, hour, setHour, 'Jam')}
         {column(MINUTES, minute, setMinute, 'Menit')}
       </View>
@@ -349,20 +367,25 @@ function TimeSheet({ visible, title, value, onSelect, onClose }: {
           onSelect(`${hour}:${minute}`);
           onClose();
         }}
-        style={({ pressed }) => [styles.sheetConfirm, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.primaryButton, styles.sheetPrimary, pressed && styles.pressed]}
       >
-        <Text style={styles.sheetConfirmText}>Pilih {hour}:{minute}</Text>
+        <Text style={styles.primaryText}>Pilih {hour}:{minute}</Text>
       </Pressable>
     </Sheet>
   );
 }
 
+// ===== Halaman =====
+
 export default function SessionFormScreen() {
-  // Tanpa id: tambah sesi baru. Dengan id: ubah sesi yang sudah ada.
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { sessions, currentUser, role } = useApp();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const k = width / FIGMA_WIDTH;
   const isEdit = !!id;
   const editing = isEdit ? sessions.find((s) => s.id === id) : undefined;
+  const isOwner = !!editing && editing.dibuatOleh === currentUser?.id;
 
   const [praktikum, setPraktikum] = useState('');
   const [kelas, setKelas] = useState('');
@@ -382,6 +405,11 @@ export default function SessionFormScreen() {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const deleted = useRef(false);
 
   // Saat mengubah sesi, isi form sekali dengan data yang tersimpan.
   const prefilled = useRef(false);
@@ -465,227 +493,255 @@ export default function SessionFormScreen() {
     }
   }
 
+  async function removeSession() {
+    if (!id) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      deleted.current = true;
+      await deleteSession(id);
+      setConfirmDelete(false);
+      router.back();
+    } catch (error) {
+      deleted.current = false;
+      setDeleteError(scheduleErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const keyword = search.trim().toLowerCase();
   const filtered = praktikanList.filter(
     (u) => u.nama.toLowerCase().includes(keyword) || u.nim.includes(keyword),
   );
   const kelasOptions = kelas && !KELAS_OPTIONS.includes(kelas) ? [...KELAS_OPTIONS, kelas] : KELAS_OPTIONS;
+  const praktikumOptions = praktikum && !PRAKTIKUM_OPTIONS.includes(praktikum)
+    ? [...PRAKTIKUM_OPTIONS, praktikum]
+    : PRAKTIKUM_OPTIONS;
 
   const notAllowed = role !== 'ASISTEN';
-  const notFound = isEdit && !editing;
+  const notFound = isEdit && !editing && !deleted.current;
+  const title = isEdit ? 'Ubah Sesi' : 'Tambah Sesi';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()} style={styles.back} hitSlop={8}>
-            <Ionicons name="arrow-back" size={20} color={palette.ivory} />
-          </Pressable>
-          <Text style={styles.eyebrow}>JADWAL ASISTEN</Text>
-          <Text style={styles.pageTitle}>{isEdit ? 'Ubah sesi' : 'Tambah sesi'}</Text>
-          <Text style={styles.pageDescription}>
-            Lengkapi data sesi dan pilih praktikan yang terdaftar. Hanya praktikan terpilih yang dapat melihat sesi ini.
-          </Text>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Latar: lavender di atas, bukit ungu dan awan putih di belakang kolom pertama. */}
+          <View style={[styles.lavenderTop, { height: (DECOR_TOP + 140) * k }]} pointerEvents="none" />
+          <View style={[styles.decor, { top: DECOR_TOP * k }]} pointerEvents="none">
+            <Hills preset="awan" />
+          </View>
+
+          <View style={styles.header}>
+            <BackHeader title={title} variant="onLavender" />
+          </View>
 
           {notAllowed || notFound ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="alert-circle-outline" size={26} color={palette.champagne} />
-              <Text style={styles.emptyTitle}>
-                {notAllowed ? 'Hanya asisten yang dapat mengelola jadwal' : 'Sesi tidak ditemukan'}
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeTitle}>
+                {notAllowed ? 'Hanya asisten yang dapat mengelola sesi' : 'Sesi tidak ditemukan'}
               </Text>
-              <Text style={styles.emptyDescription}>
+              <Text style={styles.noticeText}>
                 {notAllowed ? 'Masuk dengan akun asisten untuk menambah atau mengubah sesi.' : 'Sesi ini mungkin sudah dihapus.'}
               </Text>
             </View>
           ) : (
-            <>
-              <View style={styles.formCard}>
-                <SelectField
-                  label="Praktikum"
-                  value={praktikum}
-                  placeholder="Pilih praktikum"
-                  icon="chevron-down"
-                  onPress={() => setPicker('praktikum')}
-                />
+            <View style={styles.form}>
+              <PillSelect
+                label="Nama praktikum"
+                value={praktikum}
+                placeholder="Nama Praktikum"
+                icon="chevron-down"
+                onPress={() => setPicker('praktikum')}
+              />
+              <PillSelect
+                label="Kelas"
+                value={kelas ? `Kelas ${kelas}` : ''}
+                placeholder="Kelas"
+                icon="chevron-down"
+                onPress={() => setPicker('kelas')}
+              />
 
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Kelas</Text>
-                  <View style={styles.chipRow}>
-                    {kelasOptions.map((option) => {
-                      const active = kelas === option;
-                      return (
-                        <Pressable
-                          key={option}
-                          accessibilityRole="radio"
-                          accessibilityState={{ selected: active }}
-                          accessibilityLabel={`Kelas ${option}`}
-                          onPress={() => setKelas(option)}
-                          style={[styles.chip, active && styles.chipActive]}
-                        >
-                          <Text style={[styles.chipText, active && styles.chipTextActive]}>{option}</Text>
-                        </Pressable>
-                      );
-                    })}
+              <View style={styles.rows}>
+                <Row label="Tanggal">
+                  <PillSelect
+                    compact
+                    label="Tanggal"
+                    value={tanggal ? formatTanggal(tanggal) : ''}
+                    placeholder="Pilih tanggal"
+                    icon="calendar"
+                    onPress={() => setPicker('tanggal')}
+                  />
+                </Row>
+
+                <Row label="Jam">
+                  <View style={styles.inlineRow}>
+                    <View style={styles.flex}>
+                      <PillSelect compact label="Jam mulai" value={jamMulai} placeholder="Mulai" onPress={() => setPicker('mulai')} />
+                    </View>
+                    <Text style={styles.dash}>-</Text>
+                    <View style={styles.flex}>
+                      <PillSelect compact label="Jam selesai" value={jamSelesai} placeholder="Selesai" onPress={() => setPicker('selesai')} />
+                    </View>
                   </View>
-                </View>
+                </Row>
 
-                <View style={styles.field}>
-                  <Text style={styles.fieldLabel}>Pertemuan ke</Text>
-                  <View style={styles.stepper}>
+                <Row label="Ruangan">
+                  <PillSelect
+                    compact
+                    label="Ruangan"
+                    value={selectedLab ? selectedLab.nama : ruang}
+                    placeholder="Pilih lab"
+                    icon="chevron-down"
+                    onPress={() => setPicker('ruang')}
+                  />
+                </Row>
+                {selectedLab ? (
+                  <Text style={styles.hint}>{selectedLab.gedung} · radius presensi {selectedLab.radius} m</Text>
+                ) : !!ruang && !labsLoading ? (
+                  <Text style={[styles.hint, styles.hintError]}>
+                    Ruang &quot;{ruang}&quot; belum terdaftar sebagai laboratorium. Pilih ulang dari daftar.
+                  </Text>
+                ) : null}
+
+                <Row label="Pertemuan">
+                  <View style={[styles.pill, styles.pillCompact, styles.stepper]}>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Kurangi pertemuan"
                       onPress={() => setPertemuan((value) => Math.max(1, value - 1))}
+                      hitSlop={8}
                       style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
                     >
-                      <Ionicons name="remove" size={18} color={palette.navy} />
+                      <Feather name="minus" size={16} color={color.purpleInk} />
                     </Pressable>
-                    <Text style={styles.stepValue}>{pertemuan}</Text>
+                    <Text style={styles.stepValue} accessibilityLabel={`Pertemuan ke ${pertemuan}`}>{pertemuan}</Text>
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Tambah pertemuan"
                       onPress={() => setPertemuan((value) => value + 1)}
+                      hitSlop={8}
                       style={({ pressed }) => [styles.stepButton, pressed && styles.pressed]}
                     >
-                      <Ionicons name="add" size={18} color={palette.navy} />
+                      <Feather name="plus" size={16} color={color.purpleInk} />
                     </Pressable>
                   </View>
-                </View>
+                </Row>
 
-                <SelectField
-                  label="Tanggal"
-                  value={tanggal ? formatTanggal(tanggal) : ''}
-                  placeholder="Pilih tanggal"
-                  icon="calendar-outline"
-                  onPress={() => setPicker('tanggal')}
-                />
-
-                <View style={styles.row}>
-                  <View style={styles.flex}>
-                    <SelectField
-                      label="Jam mulai"
-                      value={jamMulai}
-                      placeholder="Pilih jam"
-                      icon="time-outline"
-                      onPress={() => setPicker('mulai')}
-                    />
-                  </View>
-                  <View style={styles.flex}>
-                    <SelectField
-                      label="Jam selesai"
-                      value={jamSelesai}
-                      placeholder="Pilih jam"
-                      icon="time-outline"
-                      onPress={() => setPicker('selesai')}
-                    />
-                  </View>
-                </View>
-
-                <View>
-                  <SelectField
-                    label="Ruang"
-                    value={selectedLab ? selectedLab.nama : ruang}
-                    placeholder="Pilih laboratorium"
-                    icon="chevron-down"
-                    onPress={() => setPicker('ruang')}
-                  />
-                  {selectedLab ? (
-                    <Text style={[styles.helper, styles.labHint]}>
-                      {selectedLab.gedung} · radius presensi {selectedLab.radius} m
-                    </Text>
-                  ) : !!ruang && !labsLoading ? (
-                    <Text style={[styles.error, styles.labHint]}>
-                      Ruang "{ruang}" belum terdaftar sebagai laboratorium. Pilih ulang dari daftar.
-                    </Text>
-                  ) : null}
-                </View>
-
-                <View>
-                  <Text style={styles.fieldLabel}>Materi</Text>
+                <Row label="Materi">
                   <TextInput
                     accessibilityLabel="Materi"
-                    placeholder="Contoh: Pengenalan HTML & CSS"
-                    placeholderTextColor="#7C879B"
-                    selectionColor={palette.sapphire}
-                    style={[styles.input, styles.multiline]}
+                    placeholder="Contoh: Join tabel"
+                    placeholderTextColor={color.placeholder}
+                    selectionColor={color.purpleDeep}
+                    style={[styles.pill, styles.pillCompact, styles.materi]}
                     value={materi}
                     onChangeText={setMateri}
                     multiline
                   />
+                </Row>
+              </View>
+
+              {/* Daftar praktikan (Figma: kotak oranye "Daftar Praktikan"). */}
+              <View style={styles.studentBox}>
+                <View style={styles.studentHeader}>
+                  <Text style={styles.studentTitle}>Daftar Praktikan</Text>
+                  <Text style={styles.studentCount}>{selected.length} dipilih</Text>
+                </View>
+                <View style={styles.studentPanel}>
+                  <View style={styles.search}>
+                    <Feather name="search" size={16} color={color.muted} />
+                    <TextInput
+                      accessibilityLabel="Cari praktikan"
+                      placeholder="Cari nama atau NIM"
+                      placeholderTextColor={color.placeholder}
+                      selectionColor={color.purpleDeep}
+                      style={styles.searchInput}
+                      value={search}
+                      onChangeText={setSearch}
+                    />
+                  </View>
+                  {!!listMessage && <Text style={styles.error} accessibilityRole="alert">{listMessage}</Text>}
+                  {!listMessage && filtered.length === 0 && (
+                    <Text style={styles.helper}>
+                      {praktikanList.length === 0
+                        ? 'Belum ada akun praktikan yang terdaftar.'
+                        : 'Tidak ada praktikan yang cocok dengan pencarian.'}
+                    </Text>
+                  )}
+                  {filtered.map((user) => {
+                    const checked = selected.includes(user.id);
+                    return (
+                      <Pressable
+                        key={user.id}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked }}
+                        accessibilityLabel={`${user.nama}, ${user.nim}`}
+                        onPress={() => toggle(user.id)}
+                        style={({ pressed }) => [styles.student, pressed && styles.pressed]}
+                      >
+                        <View style={[styles.check, checked && styles.checkOn]}>
+                          {checked && <Feather name="check" size={14} color={color.onDark} />}
+                        </View>
+                        <View style={styles.flex}>
+                          <Text style={styles.optionName}>{user.nama}</Text>
+                          <Text style={styles.optionSub}>{user.nim}</Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               </View>
 
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Praktikan terdaftar</Text>
-                <Text style={styles.count}>{selected.length}</Text>
-              </View>
-
-              <View style={styles.formCard}>
-                <TextInput
-                  accessibilityLabel="Cari praktikan"
-                  placeholder="Cari nama atau NIM"
-                  placeholderTextColor="#7C879B"
-                  selectionColor={palette.sapphire}
-                  style={styles.input}
-                  value={search}
-                  onChangeText={setSearch}
-                />
-                {!!listMessage && <Text style={styles.error} accessibilityRole="alert">{listMessage}</Text>}
-                {!listMessage && filtered.length === 0 && (
-                  <Text style={styles.helper}>
-                    {praktikanList.length === 0
-                      ? 'Belum ada akun praktikan yang terdaftar.'
-                      : 'Tidak ada praktikan yang cocok dengan pencarian.'}
-                  </Text>
-                )}
-                {filtered.map((user) => {
-                  const checked = selected.includes(user.id);
-                  return (
-                    <Pressable
-                      key={user.id}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked }}
-                      onPress={() => toggle(user.id)}
-                      style={({ pressed }) => [styles.option, pressed && styles.pressed]}
-                    >
-                      <Ionicons
-                        name={checked ? 'checkbox' : 'square-outline'}
-                        size={22}
-                        color={checked ? palette.navy : palette.taupe}
-                      />
-                      <View style={styles.flex}>
-                        <Text style={styles.optionName}>{user.nama}</Text>
-                        <Text style={styles.optionNim}>{user.nim}</Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {!!message && <Text style={[styles.error, styles.errorOnNavy]} accessibilityRole="alert">{message}</Text>}
+              {!!message && <Text style={styles.error} accessibilityRole="alert">{message}</Text>}
 
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: busy }}
                 onPress={submit}
                 disabled={busy}
-                style={({ pressed }) => [styles.submitButton, (pressed || busy) && styles.pressed]}
+                style={({ pressed }) => [styles.primaryButton, (pressed || busy) && styles.pressed]}
               >
-                <Text style={styles.submitText}>
-                  {busy ? 'Menyimpan...' : isEdit ? 'Simpan perubahan' : 'Simpan sesi'}
-                </Text>
+                <Text style={styles.primaryText}>{busy ? 'Menyimpan...' : 'Simpan'}</Text>
               </Pressable>
-            </>
+
+              {isEdit && isOwner && (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setDeleteError('');
+                    setConfirmDelete(true);
+                  }}
+                  style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+                >
+                  <Feather name="trash-2" size={16} color={color.danger} />
+                  <Text style={styles.deleteText}>Hapus sesi ini</Text>
+                </Pressable>
+              )}
+            </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
 
       <OptionSheet
         visible={picker === 'praktikum'}
-        title="Pilih praktikum"
-        options={PRAKTIKUM_OPTIONS}
+        title="Nama praktikum"
+        options={praktikumOptions}
         value={praktikum}
         onSelect={setPraktikum}
+        onClose={() => setPicker(null)}
+      />
+      <OptionSheet
+        visible={picker === 'kelas'}
+        title="Kelas"
+        options={kelasOptions}
+        value={kelas}
+        onSelect={setKelas}
         onClose={() => setPicker(null)}
       />
       <LabSheet
@@ -717,130 +773,232 @@ export default function SessionFormScreen() {
         onSelect={setJamSelesai}
         onClose={() => setPicker(null)}
       />
+
+      <ConfirmDialog
+        visible={confirmDelete}
+        title="Hapus sesi?"
+        message={editing ? `${editing.praktikum} · Kelas ${editing.kelas} · Pertemuan ${editing.pertemuan}. Sesi yang dihapus tidak dapat dikembalikan.` : ''}
+        confirmLabel="Hapus"
+        danger
+        busy={deleting}
+        error={deleteError}
+        onConfirm={removeSession}
+        onCancel={() => !deleting && setConfirmDelete(false)}
+      />
     </SafeAreaView>
   );
 }
 
+const LABEL_WIDTH = 104;
+
 const styles = StyleSheet.create({
-  labHint: { marginTop: 6 },
-  container: { flex: 1, backgroundColor: palette.navy },
+  container: { flex: 1, backgroundColor: color.lavender },
   flex: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 36 },
-  back: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.sapphire, marginBottom: 16,
-  },
-  eyebrow: { color: palette.taupe, fontSize: 10, fontWeight: '700', letterSpacing: 1.4 },
-  pageTitle: { color: palette.ivory, fontSize: 28, fontWeight: '700', marginTop: 5 },
-  pageDescription: { color: palette.champagne, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 18 },
-  formCard: { padding: 18, borderRadius: 20, backgroundColor: palette.ivory },
-  row: { flexDirection: 'row', gap: 12 },
-  field: { marginBottom: 14 },
-  fieldLabel: { color: palette.navy, fontSize: 12, fontWeight: '700', marginBottom: 8 },
-  input: {
-    minHeight: 50, borderWidth: 1, borderColor: palette.taupe, borderRadius: 13,
-    backgroundColor: '#FFFFFF', paddingHorizontal: 13, paddingVertical: 11,
-    color: palette.navy, fontSize: 13,
-  },
-  multiline: { minHeight: 84, textAlignVertical: 'top' },
-  select: {
-    minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-    borderWidth: 1, borderColor: palette.taupe, borderRadius: 13,
-    backgroundColor: '#FFFFFF', paddingHorizontal: 13,
-  },
-  selectText: { flex: 1, color: palette.navy, fontSize: 13, fontWeight: '700' },
-  placeholder: { color: '#7C879B', fontWeight: '400' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  chip: {
-    minWidth: 52, minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center',
-    borderRadius: 13, borderWidth: 1, borderColor: palette.taupe, backgroundColor: '#FFFFFF',
-  },
-  chipActive: { backgroundColor: palette.navy, borderColor: palette.navy },
-  chipText: { color: palette.navy, fontSize: 13, fontWeight: '700' },
-  chipTextActive: { color: palette.ivory },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  stepButton: {
-    width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.champagne, borderWidth: 1, borderColor: palette.taupe,
-  },
-  stepValue: { minWidth: 32, textAlign: 'center', color: palette.navy, fontSize: 18, fontWeight: '700' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 11 },
-  sectionTitle: { color: palette.ivory, fontSize: 17, fontWeight: '700' },
-  count: {
-    color: palette.navy, backgroundColor: palette.champagne, minWidth: 26, paddingHorizontal: 7, paddingVertical: 4,
-    borderRadius: 20, textAlign: 'center', fontSize: 11, fontWeight: '700', overflow: 'hidden',
-  },
-  helper: { color: palette.sapphire, fontSize: 12, lineHeight: 18, marginTop: 12 },
-  option: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
-    borderTopWidth: 1, borderTopColor: '#E4E0D6', marginTop: 12,
-  },
-  optionName: { flex: 1, color: palette.navy, fontSize: 13, fontWeight: '700' },
-  optionNim: { color: palette.sapphire, fontSize: 11, marginTop: 3 },
   pressed: { opacity: 0.75 },
+  content: { flexGrow: 1, backgroundColor: color.background },
+  lavenderTop: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: color.lavender },
+  decor: { position: 'absolute', left: 0, right: 0 },
+  header: { paddingHorizontal: 17, paddingTop: 12 },
+  form: { paddingHorizontal: 34, paddingTop: 34, gap: 14 },
+
+  // Kolom isian berbentuk pil (Figma: putih, garis ungu tua).
+  pill: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 22,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    backgroundColor: color.card,
+  },
+  pillCompact: { minHeight: 44, paddingHorizontal: 16 },
+  pillText: { flex: 1, fontFamily: font.regular, fontSize: 15, color: color.ink },
+  placeholder: { fontFamily: font.regular, fontStyle: 'italic', color: color.placeholder },
+
+  rows: { gap: 10, marginTop: 14 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  rowLabel: { width: LABEL_WIDTH, fontFamily: font.medium, fontSize: 15, color: color.ink },
+  inlineRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dash: { fontFamily: font.medium, fontSize: 16, color: color.ink },
+  hint: { marginLeft: LABEL_WIDTH, marginTop: -4, fontFamily: font.regular, fontSize: 12, lineHeight: 17, color: color.muted },
+  hintError: { color: color.danger },
+  stepper: { justifyContent: 'space-between' },
+  stepButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.lavenderSoft,
+  },
+  stepValue: { fontFamily: font.semibold, fontSize: 16, color: color.ink },
+  materi: { borderRadius: 22, paddingVertical: 10, fontFamily: font.regular, fontSize: 15, color: color.ink, textAlignVertical: 'center' },
+
+  // Daftar praktikan
+  studentBox: {
+    marginTop: 12,
+    padding: 16,
+    paddingTop: 14,
+    borderRadius: 34,
+    backgroundColor: color.orange,
+  },
+  studentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 2, marginBottom: 12 },
+  studentTitle: { fontFamily: font.display, fontSize: 20, color: color.onDark },
+  studentCount: {
+    fontFamily: font.semibold,
+    fontSize: 12,
+    color: color.ink,
+    backgroundColor: color.card,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    overflow: 'hidden',
+  },
+  studentPanel: { borderRadius: radius.card, backgroundColor: color.surface, padding: 12, minHeight: 110 },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 42,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: color.card,
+  },
+  searchInput: { flex: 1, fontFamily: font.regular, fontSize: 14, color: color.ink, paddingVertical: 8 },
+  student: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 52,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: color.divider,
+  },
+  check: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.card,
+  },
+  checkOn: { backgroundColor: color.plum, borderColor: color.plum },
+  optionName: { fontFamily: font.semibold, fontSize: 14, color: color.ink },
+  optionSub: { fontFamily: font.regular, fontSize: 12, color: color.muted, marginTop: 1 },
+  helper: { fontFamily: font.regular, fontSize: 13, lineHeight: 19, color: color.muted, marginTop: 12 },
   error: {
-    color: '#713D46', backgroundColor: '#F0E7E5', borderRadius: 10, padding: 10,
-    fontSize: 12, lineHeight: 18, marginTop: 10,
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 19,
+    color: color.danger,
+    backgroundColor: color.dangerSoft,
+    borderRadius: radius.sm,
+    padding: 12,
+    marginTop: 4,
   },
-  errorOnNavy: { marginTop: 16 },
-  submitButton: {
-    minHeight: 50, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.champagne, borderRadius: 13, marginTop: 16,
+
+  // Tombol
+  primaryButton: {
+    minHeight: 54,
+    marginTop: 14,
+    borderRadius: radius.pill,
+    backgroundColor: color.plum,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  submitText: { color: palette.navy, fontSize: 14, fontWeight: '700' },
-  emptyCard: {
-    alignItems: 'center', backgroundColor: palette.sapphire, borderWidth: 1, borderColor: '#52658A',
-    borderRadius: 18, padding: 22,
-  },
-  emptyTitle: { color: palette.ivory, fontSize: 14, fontWeight: '700', marginTop: 9, textAlign: 'center' },
-  emptyDescription: { color: palette.champagne, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
+  primaryText: { fontFamily: font.display, fontSize: 20, color: color.onDark },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48 },
+  deleteText: { fontFamily: font.semibold, fontSize: 14, color: color.danger },
+
+  noticeCard: { margin: 34, padding: 22, gap: 6, borderRadius: radius.card, backgroundColor: color.card },
+  noticeTitle: { fontFamily: font.display, fontSize: 18, color: color.ink },
+  noticeText: { fontFamily: font.regular, fontSize: 13, lineHeight: 19, color: color.inkSoft },
 
   // Lembar pilihan
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(7,17,40,0.7)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(54,54,54,0.55)' },
   sheet: {
-    maxHeight: '80%', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 30,
-    borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: palette.ivory,
+    maxHeight: '82%',
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: color.card,
   },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  sheetTitle: { color: palette.navy, fontSize: 21, fontWeight: '700' },
-  closeButton: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: palette.champagne,
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sheetTitle: { fontFamily: font.display, fontSize: 22, color: color.ink },
+  roundButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.lavenderSoft,
   },
-  sheetList: { maxHeight: 240 },
+  sheetList: { maxHeight: 260 },
   sheetOption: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-    paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#E4E0D6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    minHeight: 52,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: color.divider,
   },
-  customLabel: { marginTop: 14 },
+  sheetLabel: { fontFamily: font.medium, fontSize: 13, color: color.muted, marginTop: 16, marginBottom: 8 },
+  textInput: {
+    minHeight: 46,
+    paddingHorizontal: 18,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    fontFamily: font.regular,
+    fontSize: 14,
+    color: color.ink,
+  },
   smallButton: {
-    minHeight: 50, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center',
-    borderRadius: 13, backgroundColor: palette.navy,
+    minHeight: 46,
+    paddingHorizontal: 20,
+    borderRadius: radius.pill,
+    backgroundColor: color.plum,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  smallButtonText: { color: palette.ivory, fontSize: 13, fontWeight: '700' },
-  sheetConfirm: {
-    minHeight: 50, alignItems: 'center', justifyContent: 'center',
-    borderRadius: 13, backgroundColor: palette.navy, marginTop: 16,
+  smallButtonText: { fontFamily: font.semibold, fontSize: 14, color: color.onDark },
+  sheetPrimary: { marginTop: 18 },
+  sheetSecondary: {
+    minHeight: 48,
+    marginTop: 16,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: color.purpleInk,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sheetConfirmText: { color: palette.ivory, fontSize: 14, fontWeight: '700' },
+  sheetSecondaryText: { fontFamily: font.semibold, fontSize: 14, color: color.purpleInk },
 
-  // Kalender
-  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  calendarTitle: { color: palette.navy, fontSize: 15, fontWeight: '700' },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calendarCell: { width: '14.28%', alignItems: 'center', paddingVertical: 3 },
-  calendarDayName: { color: palette.sapphire, fontSize: 11, fontWeight: '700', paddingVertical: 6 },
-  calendarDay: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  calendarToday: { borderWidth: 1, borderColor: palette.taupe },
-  calendarSelected: { backgroundColor: palette.navy, borderColor: palette.navy },
-  calendarDayText: { color: palette.navy, fontSize: 13, fontWeight: '600' },
-  calendarSelectedText: { color: palette.ivory, fontWeight: '700' },
+  // Kalender di lembar pilihan
+  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 8 },
+  calendarTitle: { fontFamily: font.display, fontSize: 18, color: color.ink },
+  calendarRow: { flexDirection: 'row' },
+  calendarWeekday: { flex: 1, textAlign: 'center', fontFamily: font.medium, fontSize: 11, color: color.muted, paddingVertical: 6 },
+  calendarCell: { flex: 1, alignItems: 'center', paddingVertical: 2 },
+  calendarDay: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: color.dayBg },
+  calendarToday: { borderWidth: 2, borderColor: color.plum },
+  calendarSelected: { backgroundColor: color.plum, borderColor: color.plum },
+  calendarDayText: { fontFamily: font.medium, fontSize: 13, color: color.dayText },
+  calendarOther: { color: color.dayOtherText },
+  calendarSelectedText: { color: color.onDark },
 
   // Jam
-  timeColumnLabel: { color: palette.sapphire, fontSize: 11, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
-  timeColumn: { height: 220, borderWidth: 1, borderColor: palette.taupe, borderRadius: 13, backgroundColor: '#FFFFFF' },
-  timeItem: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginHorizontal: 6, marginVertical: 2, borderRadius: 10 },
-  timeItemSelected: { backgroundColor: palette.navy },
-  timeItemText: { color: palette.navy, fontSize: 15, fontWeight: '600' },
-  timeItemTextSelected: { color: palette.ivory, fontWeight: '700' },
+  timeColumnLabel: { fontFamily: font.medium, fontSize: 12, color: color.muted, textAlign: 'center', marginBottom: 8 },
+  timeColumn: { height: 220, borderRadius: radius.card, backgroundColor: color.surface },
+  timeItem: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginHorizontal: 6, marginVertical: 2, borderRadius: radius.button },
+  timeItemSelected: { backgroundColor: color.plum },
+  timeItemText: { fontFamily: font.medium, fontSize: 16, color: color.ink },
+  timeItemTextSelected: { color: color.onDark },
 });
