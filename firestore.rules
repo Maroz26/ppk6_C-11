@@ -20,6 +20,12 @@ service cloud.firestore {
       return signedIn() && myRole() == 'PRAKTIKAN';
     }
 
+    // Sprint 4: peran pengelola (Asisten lama + Asprak/Aslab baru). Hanya dipakai di aturan
+    // denda/pembayaran agar tetap jalan walaupun nama peran baru belum final di tim.
+    function isStaff() {
+      return signedIn() && myRole() in ['ASISTEN', 'ASPRAK', 'ASLAB'];
+    }
+
     // Profil pengguna: dibuat sendiri saat register, peran tidak bisa diganti.
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAsisten());
@@ -117,6 +123,48 @@ service cloud.firestore {
         && request.resource.data.teks.size() > 0
         && request.resource.data.sentimen is string;
       allow update, delete: if false;
+    }
+
+    // ===== Sprint 4: Denda & Pembayaran =====
+
+    // Tagihan denda: id = {sessionId}_{praktikanId} → satu kejadian terlambat = satu tagihan.
+    // Dibuat oleh billingService (P2) dari perangkat praktikan saat presensi terlambat
+    // atau dari perangkat Asprak. Status (MENUNGGU_PEMBAYARAN / LUNAS) HANYA diubah server
+    // pembayaran (Admin SDK, tidak terikat rules), jadi client tidak bisa menandai lunas sendiri.
+    function validNewFine(fineId, d) {
+      return d.praktikanId is string
+        && fineId == d.sessionId + '_' + d.praktikanId
+        && d.attendanceId == fineId
+        && d.nominal is int && d.nominal > 0
+        && d.menitTerlambat is int && d.menitTerlambat > 0
+        && d.status == 'BELUM_DIBAYAR'
+        && d.dibayarPada == null
+        && d.paymentOrderId == null
+        // presensi terkait harus ada (boleh ditulis dalam batch yang sama)
+        && existsAfter(/databases/$(database)/documents/attendances/$(fineId));
+    }
+
+    match /fines/{fineId} {
+      allow read: if isStaff()
+        || (signedIn() && resource.data.praktikanId == request.auth.uid);
+      allow create: if (isStaff() || (isPraktikan() && request.resource.data.praktikanId == request.auth.uid))
+        && validNewFine(fineId, request.resource.data);
+      allow update: if false;
+      // Koreksi manual (mis. izin diterima belakangan) hanya oleh staf dan hanya jika belum dibayar.
+      allow delete: if isStaff() && resource.data.status == 'BELUM_DIBAYAR';
+    }
+
+    // Transaksi pembayaran Midtrans: hanya ditulis server pembayaran (Admin SDK).
+    match /payments/{orderId} {
+      allow read: if isStaff()
+        || (signedIn() && resource.data.praktikanId == request.auth.uid);
+      allow write: if false;
+    }
+
+    // Konfigurasi publik (URL server pembayaran): dibaca aplikasi, ditulis server saja.
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
     }
   }
 }

@@ -53,6 +53,9 @@ function RootNavigator({ fontsReady }: { fontsReady: boolean }) {
         <Stack.Screen name="profil" />
         <Stack.Screen name="notifikasi" />
         <Stack.Screen name="sesi/[id]" />
+        {/* Sprint 4: denda & pembayaran (assist://pembayaran membuka halaman ini) */}
+        <Stack.Screen name="pembayaran/index" />
+        <Stack.Screen name="pembayaran/riwayat" />
         <Stack.Screen name="testAi" options={{ headerShown: true, title: 'Analisis AI' }} />
       </Stack.Protected>
     </Stack>

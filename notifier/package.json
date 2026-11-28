@@ -1,6 +1,7 @@
 {
   "name": "notifier",
   "private": true,
+  "engines": { "node": ">=20.12" },
   "scripts": {
     "start": "node listener.js"
   },

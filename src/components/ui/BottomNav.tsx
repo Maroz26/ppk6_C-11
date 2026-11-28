@@ -8,13 +8,15 @@ type Tab = 'home' | 'profile';
 
 // Navigasi bawah: pil berwarna tema dengan ikon beranda & profil, maskot di tengah.
 // Asisten: maskot diberi tanda "+" untuk menambah sesi (Figma: Home Screen Asprak).
-export function BottomNav({ active, onHome, onProfile, onMascot, tone = 'praktikan', mascotPlus = false }: {
+// Praktikan (Sprint 4): maskot menjadi tombol pintas Presensi (mascotLabel = "Presensi").
+export function BottomNav({ active, onHome, onProfile, onMascot, tone = 'praktikan', mascotPlus = false, mascotLabel }: {
   active: Tab;
   onHome: () => void;
   onProfile: () => void;
   onMascot?: () => void;
   tone?: RoleTone;
   mascotPlus?: boolean;
+  mascotLabel?: string; // label pembaca layar untuk tombol maskot
 }) {
   const insets = useSafeAreaInsets();
   const theme = roleTheme[tone];
@@ -45,7 +47,7 @@ export function BottomNav({ active, onHome, onProfile, onMascot, tone = 'praktik
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={mascotPlus ? 'Tambah sesi' : 'Maskot ASSIST'}
+        accessibilityLabel={mascotLabel ?? (mascotPlus ? 'Tambah sesi' : 'Maskot ASSIST')}
         onPress={onMascot}
         disabled={!onMascot}
         style={({ pressed }) => [styles.mascotWrap, pressed && styles.pressed]}

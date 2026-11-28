@@ -63,6 +63,10 @@ export type AttendanceResult =
 // ===== Tambahan Sprint 3 =====
 // labs/{labId}                      -> Lab (lokasi & radius acuan presensi)
 // labSchedule/{sessionId}           -> LabScheduleEntry (salinan jadwal tanpa data peserta)
+// ===== Tambahan Sprint 4 =====
+// fines/{sessionId}_{uid}           -> Fine (tagihan denda; ditulis billingService P2)
+// payments/{orderId}                -> Payment (transaksi Midtrans; HANYA ditulis server P3)
+// config/payment                    -> PaymentConfig (URL backend; HANYA ditulis server P3)
 
 export const COLLECTIONS = {
   users: 'users',
@@ -72,6 +76,9 @@ export const COLLECTIONS = {
   reviews: 'reviews',
   labs: 'labs',
   labSchedule: 'labSchedule',
+  fines: 'fines',
+  payments: 'payments',
+  config: 'config',
 } as const;
 
 export type PermissionStatus = 'MENUNGGU' | 'DITERIMA' | 'DITOLAK';
@@ -128,4 +135,62 @@ export type LabScheduleEntry = {
   jamMulai: string;    // HH:MM
   jamSelesai: string;  // HH:MM
   status: SessionStatus;
+};
+
+// ===== Sprint 4: Denda & Pembayaran =====
+
+// Status tagihan denda.
+// BELUM_DIBAYAR        : dibuat P2 saat praktikan terlambat (status awal)
+// MENUNGGU_PEMBAYARAN  : server P3 sudah membuat transaksi Midtrans, belum ada hasil akhir
+// LUNAS                : webhook Midtrans terverifikasi settlement/capture
+// Pembayaran gagal/kedaluwarsa mengembalikan status ke BELUM_DIBAYAR agar bisa dibayar ulang.
+// Status tagihan TIDAK PERNAH mengubah data presensi (attendances).
+export type FineStatus = 'BELUM_DIBAYAR' | 'MENUNGGU_PEMBAYARAN' | 'LUNAS';
+
+// Tagihan denda keterlambatan. id = `${sessionId}_${praktikanId}` sehingga
+// satu kejadian terlambat = satu tagihan (tidak bisa dobel).
+export type Fine = {
+  id: string;
+  praktikanId: string;
+  nama: string;
+  nim: string;
+  sessionId: string;
+  attendanceId: string;          // = `${sessionId}_${praktikanId}` (id dokumen attendances)
+  praktikum: string;             // disalin dari sesi agar riwayat tetap terbaca
+  pertemuan: number;
+  nominal: number;               // rupiah, bilangan bulat
+  menitTerlambat: number;
+  status: FineStatus;
+  dibuatPada: string;            // ISO
+  dibayarPada: string | null;    // ISO, diisi server saat LUNAS
+  paymentOrderId: string | null; // order_id transaksi terakhir, diisi server
+};
+
+// Status transaksi yang ditampilkan di aplikasi (hasil pemetaan status Midtrans).
+export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
+
+// Satu percobaan pembayaran di Midtrans. id = order_id (unik per percobaan).
+export type Payment = {
+  id: string;
+  fineId: string;
+  praktikanId: string;
+  sessionId: string;
+  praktikum: string;
+  pertemuan: number;
+  nominal: number;
+  status: PaymentStatus;
+  midtransStatus: string;        // transaction_status asli, mis. pending/settlement/expire
+  paymentType: string | null;    // mis. qris, bank_transfer, gopay
+  snapToken: string;
+  redirectUrl: string;
+  tagihanPada: string;           // ISO, salinan Fine.dibuatPada
+  dibuatPada: string;            // ISO, saat transaksi dibuat
+  transaksiPada: string | null;  // ISO, transaction_time dari Midtrans
+  diperbaruiPada: string;        // ISO, update terakhir dari webhook
+};
+
+// Dokumen config/payment: alamat backend pembayaran yang sedang aktif.
+export type PaymentConfig = {
+  apiUrl: string;
+  diperbaruiPada: string;
 };

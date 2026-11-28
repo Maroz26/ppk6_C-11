@@ -1,5 +1,6 @@
 // src/screens/ProfileScreen.tsx
 // Profil pengguna (praktikan & asisten): data akun dan tombol keluar.
+// Sprint 4: praktikan punya pintasan ke Denda & Pembayaran dan Riwayat Pembayaran.
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -26,6 +27,15 @@ export default function ProfileScreen() {
     { icon: 'award', label: 'Peran', value: role === 'ASISTEN' ? 'Asisten' : 'Praktikan' },
   ];
 
+  // Pintasan khusus praktikan (Sprint 4).
+  const links: { icon: keyof typeof Feather.glyphMap; label: string; href: '/pembayaran' | '/pembayaran/riwayat' }[] =
+    role === 'PRAKTIKAN'
+      ? [
+          { icon: 'credit-card', label: 'Denda & Pembayaran', href: '/pembayaran' },
+          { icon: 'clock', label: 'Riwayat Pembayaran', href: '/pembayaran/riwayat' },
+        ]
+      : [];
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -46,6 +56,23 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
+
+        {links.length > 0 && (
+          <View style={styles.card}>
+            {links.map((link, index) => (
+              <Pressable
+                key={link.href}
+                accessibilityRole="button"
+                onPress={() => router.push(link.href)}
+                style={({ pressed }) => [styles.row, index > 0 && styles.rowBorder, pressed && styles.pressed]}
+              >
+                <Feather name={link.icon} size={18} color={color.purpleDeep} />
+                <Text style={styles.linkLabel}>{link.label}</Text>
+                <Feather name="chevron-right" size={18} color={color.muted} />
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         <Pressable
           accessibilityRole="button"
@@ -85,6 +112,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 14 },
   rowBorder: { borderTopWidth: 1, borderTopColor: color.divider },
   rowLabel: { width: 56, fontFamily: font.medium, fontSize: 13, color: color.muted },
+  linkLabel: { flex: 1, fontFamily: font.semibold, fontSize: 14, color: color.ink },
   rowValue: { flex: 1, fontFamily: font.semibold, fontSize: 14, color: color.ink, textAlign: 'right' },
   logout: {
     flexDirection: 'row',

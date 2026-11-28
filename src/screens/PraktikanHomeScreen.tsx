@@ -1,8 +1,12 @@
 // src/screens/PraktikanHomeScreen.tsx
 // Beranda praktikan (redesign, Figma: "Home Screen Praktikan").
+// Sprint 4:
+// - Menu Presensi dipindah ke tombol maskot di navigasi bawah; posisinya di menu 6 ikon diganti Denda.
+// - Kartu pengingat denda muncul di bawah kartu oranye jika ada tagihan belum lunas.
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
-import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BottomNav } from '../components/ui/BottomNav';
 import { GreetingHeader } from '../components/ui/GreetingHeader';
@@ -10,13 +14,14 @@ import { HeroCard } from '../components/ui/HeroCard';
 import { MenuGrid, MenuItem } from '../components/ui/MenuTile';
 import { PracticumCard } from '../components/ui/PracticumCard';
 import { useApp } from '../context/AppContext';
-import { useNotifications } from '../hooks/useNotifications';
 import { useMyAttendances } from '../hooks/useAttendanceData';
 import { useLabs } from '../hooks/useLabs';
+import { useNotifications } from '../hooks/useNotifications';
 import { useNow } from '../hooks/useNow';
 import { findLabForSession } from '../services/labService';
+import { formatRupiah, listenMyFines } from '../services/paymentService';
 import { color, font, layout, radius } from '../theme/tokens';
-import { Session } from '../types';
+import { Fine, Session } from '../types';
 import { isSameDay, labelHari, namaHari, tanggalPendek, toLocalDate } from '../utils/dateId';
 
 export default function PraktikanHomeScreen() {
@@ -25,6 +30,15 @@ export default function PraktikanHomeScreen() {
   const { labs } = useLabs();
   const { data: myAttendances } = useMyAttendances(currentUser?.id);
   const now = useNow();
+  const [fines, setFines] = useState<Fine[]>([]);
+
+  // Tagihan denda realtime (Sprint 4). Gagal memuat cukup disembunyikan di beranda.
+  useEffect(() => {
+    if (!currentUser?.id) return undefined;
+    return listenMyFines(currentUser.id, setFines, () => setFines([]));
+  }, [currentUser?.id]);
+  const unpaidFines = fines.filter((f) => f.status !== 'LUNAS');
+  const unpaidTotal = unpaidFines.reduce((sum, f) => sum + (f.nominal || 0), 0);
 
   const attended = useMemo(() => new Set(myAttendances.map((a) => a.sessionId)), [myAttendances]);
 
@@ -52,7 +66,8 @@ export default function PraktikanHomeScreen() {
   }
 
   const menu: MenuItem[] = [
-    { key: 'presensi', label: 'Presensi', icon: 'presensi', onPress: goPresensi },
+    // Ikon PNG Denda belum ada di Figma, sementara pakai ikon Feather.
+    { key: 'denda', label: 'Denda', feather: 'credit-card', onPress: () => router.push('/pembayaran') },
     { key: 'jadwal', label: 'Lihat Jadwal', icon: 'jadwal', onPress: () => router.push('/praktikan/jadwal') },
     { key: 'izin', label: 'Perizinan', icon: 'perizinan', onPress: () => router.push('/praktikan/izin') },
     { key: 'rekap', label: 'Rekap Hadir', icon: 'rekap', onPress: () => router.push('/praktikan/riwayat') },
@@ -89,6 +104,21 @@ export default function PraktikanHomeScreen() {
         actionLabel={hero.action}
         onAction={hero.onAction}
       />
+      {unpaidFines.length > 0 && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${unpaidFines.length} tagihan denda belum dibayar, total ${formatRupiah(unpaidTotal)}`}
+          onPress={() => router.push('/pembayaran')}
+          style={({ pressed }) => [styles.fineBanner, pressed && styles.pressed]}
+        >
+          <Feather name="alert-circle" size={22} color={color.danger} />
+          <View style={styles.fineText}>
+            <Text style={styles.fineTitle}>{unpaidFines.length} tagihan denda belum dibayar</Text>
+            <Text style={styles.fineSub}>Total {formatRupiah(unpaidTotal)} · Ketuk untuk membayar</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={color.danger} />
+        </Pressable>
+      )}
       <View style={styles.menu}>
         <MenuGrid items={menu} />
       </View>
@@ -124,7 +154,13 @@ export default function PraktikanHomeScreen() {
           </View>
         }
       />
-      <BottomNav active="home" onHome={() => {}} onProfile={() => router.push('/profil')} />
+      <BottomNav
+        active="home"
+        onHome={() => {}}
+        onProfile={() => router.push('/profil')}
+        onMascot={goPresensi}
+        mascotLabel="Presensi"
+      />
     </SafeAreaView>
   );
 }
@@ -137,6 +173,19 @@ const styles = StyleSheet.create({
     paddingBottom: layout.bottomNavSpace,
   },
   menu: { marginTop: 20 },
+  pressed: { opacity: 0.8 },
+  fineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: radius.input,
+    backgroundColor: color.dangerSoft,
+  },
+  fineText: { flex: 1 },
+  fineTitle: { fontFamily: font.semibold, fontSize: 14, color: color.danger },
+  fineSub: { fontFamily: font.regular, fontSize: 12, color: color.inkSoft },
   divider: {
     height: 2,
     backgroundColor: color.purple,
