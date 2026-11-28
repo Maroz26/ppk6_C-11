@@ -26,7 +26,10 @@ export function usePushNotifications(userId: string | undefined, enabled: boolea
 
     const go = (data?: { [k: string]: string | object }) => {
       const type = data?.type as string | undefined;
-      if (type === 'PERMISSION_NEW') router.push('/asisten/izin');
+      // Sprint 4: tagihan & pembayaran denda.
+      if (type === 'FINE_NEW' || type === 'PAYMENT_FAILED') router.push('/pembayaran');
+      else if (type === 'PAYMENT_SUCCESS') router.push('/pembayaran/riwayat');
+      else if (type === 'PERMISSION_NEW') router.push('/asisten/izin');
       else if (type === 'PERMISSION_DECIDED') router.push('/praktikan/izin');
       else if (data?.sessionId) {
         router.push({ pathname: '/sesi/[id]', params: { id: String(data.sessionId) } });
@@ -44,7 +47,7 @@ export function usePushNotifications(userId: string | undefined, enabled: boolea
       if (s === 'DENIED') {
         Alert.alert(
           'Notifikasi dimatikan',
-          'Kamu tidak akan menerima info sesi dibuka, perubahan jadwal, atau keputusan izin. Aktifkan di Pengaturan.',
+          'Kamu tidak akan menerima info sesi dibuka, perubahan jadwal, keputusan izin, atau tagihan denda. Aktifkan di Pengaturan.',
           [
             { text: 'Nanti', style: 'cancel' },
             { text: 'Buka Pengaturan', onPress: () => Linking.openSettings() },

@@ -1,6 +1,6 @@
 // src/hooks/useNotifications.ts
 // Daftar pemberitahuan di dalam aplikasi, disusun dari data Firestore yang sudah ada
-// (sesi, presensi, izin, ulasan). Tidak ada koleksi baru dan tidak bergantung pada FCM,
+// (sesi, presensi, izin, ulasan; Sprint 4: tagihan denda & pembayaran). Tidak bergantung pada FCM,
 // jadi tetap muncul walaupun notifikasi push tidak sampai.
 // Status "sudah dibaca" disimpan di perangkat (AsyncStorage) per akun.
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,12 +11,26 @@ import {
   listenPermissionsForAssistant,
   PermissionRecord,
 } from '../services/permissionService';
+import { formatRupiah, listenMyFines, listenMyPayments } from '../services/paymentService';
 import { Review, subscribeReviews } from '../services/reviewService';
+import { Fine, Payment } from '../types';
 import { toLocalDate } from '../utils/dateId';
 import { useMyAttendances } from './useAttendanceData';
 import { useNow } from './useNow';
 
-export type NotifKind = 'presensi' | 'jadwal' | 'izin' | 'izinDiterima' | 'izinDitolak' | 'alpa' | 'ulasan' | 'pengingat';
+export type NotifKind =
+  | 'presensi'
+  | 'jadwal'
+  | 'izin'
+  | 'izinDiterima'
+  | 'izinDitolak'
+  | 'alpa'
+  | 'ulasan'
+  | 'pengingat'
+  // Sprint 4
+  | 'denda'
+  | 'bayarBerhasil'
+  | 'bayarGagal';
 
 export type NotifItem = {
   id: string;
@@ -83,6 +97,8 @@ export function useNotifications() {
   const { data: attendances } = useMyAttendances(!isAsisten ? uid : undefined);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [fines, setFines] = useState<Fine[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -94,6 +110,17 @@ export function useNotifications() {
   useEffect(() => {
     if (!uid || !isAsisten) return undefined;
     return subscribeReviews(undefined, setReviews, () => setReviews([]));
+  }, [uid, isAsisten]);
+
+  // Sprint 4: tagihan denda & transaksi pembayaran milik praktikan.
+  useEffect(() => {
+    if (!uid || isAsisten) return undefined;
+    const offFines = listenMyFines(uid, setFines, () => setFines([]));
+    const offPayments = listenMyPayments(uid, setPayments, () => setPayments([]));
+    return () => {
+      offFines();
+      offPayments();
+    };
   }, [uid, isAsisten]);
 
   const items = useMemo<NotifItem[]>(() => {
@@ -158,6 +185,33 @@ export function useNotifications() {
             body: s ? `${s.praktikum} · Kelas ${s.kelas} · Pertemuan ${s.pertemuan}.` : p.alasan,
             time: new Date(p.diputuskanPada as string),
             href: '/praktikan/izin',
+          });
+        });
+      // Sprint 4: tagihan denda baru (tetap tampil walau sudah lunas, sebagai catatan).
+      fines.forEach((f) => {
+        list.push({
+          id: `denda-${f.id}`,
+          kind: 'denda',
+          title: 'Tagihan denda baru',
+          body: `${f.praktikum} · Pertemuan ${f.pertemuan} · terlambat ${f.menitTerlambat} menit · ${formatRupiah(f.nominal)}.`,
+          time: new Date(f.dibuatPada),
+          href: '/pembayaran',
+        });
+      });
+      // Sprint 4: hasil akhir pembayaran (PENDING tidak ditampilkan).
+      payments
+        .filter((p) => p.status !== 'PENDING')
+        .forEach((p) => {
+          const ok = p.status === 'SUCCESS';
+          list.push({
+            id: `bayar-${p.id}`,
+            kind: ok ? 'bayarBerhasil' : 'bayarGagal',
+            title: ok ? 'Pembayaran denda berhasil' : 'Pembayaran denda gagal',
+            body: ok
+              ? `${formatRupiah(p.nominal)} untuk ${p.praktikum} · Pertemuan ${p.pertemuan} sudah diterima.`
+              : `${p.praktikum} · Pertemuan ${p.pertemuan}: ${p.midtransStatus === 'expire' ? 'kedaluwarsa' : 'gagal'}. Silakan bayar ulang.`,
+            time: new Date((ok ? p.transaksiPada : null) ?? p.diperbaruiPada),
+            href: ok ? '/pembayaran/riwayat' : '/pembayaran',
           });
         });
     } else {
@@ -235,7 +289,7 @@ export function useNotifications() {
     return list
       .filter((n) => !Number.isNaN(n.time.getTime()) && (n.appearAt ?? n.time).getTime() >= since)
       .sort((a, b) => b.time.getTime() - a.time.getTime());
-  }, [uid, isAsisten, sessions, attendances, permissions, reviews, now]);
+  }, [uid, isAsisten, sessions, attendances, permissions, reviews, fines, payments, now]);
 
   // Belum dibaca = muncul setelah halaman Pemberitahuan terakhir dibuka.
   const isUnread = (n: NotifItem) => lastSeen !== null && (n.appearAt ?? n.time).getTime() > lastSeen;

@@ -21,6 +21,10 @@ const KIND: Record<NotifKind, { icon: keyof typeof Feather.glyphMap; bg: string;
   izinDitolak: { icon: 'x-circle', bg: color.dangerSoft, fg: color.danger },
   alpa: { icon: 'user-x', bg: color.dangerSoft, fg: color.danger },
   ulasan: { icon: 'message-circle', bg: color.lavenderSoft, fg: color.purpleInk },
+  // Sprint 4
+  denda: { icon: 'credit-card', bg: color.dangerSoft, fg: color.danger },
+  bayarBerhasil: { icon: 'check-circle', bg: color.successSoft, fg: color.success },
+  bayarGagal: { icon: 'x-circle', bg: color.dangerSoft, fg: color.danger },
 };
 
 export default function NotificationScreen() {
@@ -47,7 +51,7 @@ export default function NotificationScreen() {
           <Text style={styles.helper}>
             {role === 'ASISTEN'
               ? 'Izin baru, pengingat mengajar, dan ulasan baru akan muncul di sini.'
-              : 'Presensi yang dibuka, pengingat praktikum, dan keputusan izin akan muncul di sini.'}
+              : 'Presensi yang dibuka, pengingat praktikum, keputusan izin, tagihan denda, dan status pembayaran akan muncul di sini.'}
           </Text>
         </View>
       ) : (
